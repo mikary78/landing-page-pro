@@ -1,7 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Rocket } from "lucide-react";
+import { Rocket, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 
 const Header = () => {
+  const { user, signOut } = useAuth();
+  
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
@@ -31,12 +35,34 @@ const Header = () => {
           </nav>
           
           <div className="flex items-center gap-4">
-            <Button variant="ghost" className="hidden md:inline-flex">
-              로그인
-            </Button>
-            <Button size="default" variant="hero">
-              시작하기
-            </Button>
+            {user ? (
+              <>
+                <span className="text-sm text-muted-foreground hidden md:inline">
+                  {user.email}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  onClick={signOut}
+                  className="gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  로그아웃
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="ghost" className="hidden md:inline-flex">
+                    로그인
+                  </Button>
+                </Link>
+                <Link to="/auth">
+                  <Button size="default" variant="hero">
+                    시작하기
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
