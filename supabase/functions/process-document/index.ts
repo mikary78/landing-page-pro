@@ -114,6 +114,7 @@ serve(async (req) => {
       .update({ 
         status: "completed",
         description: generatedContent.substring(0, 500), // 처음 500자를 설명으로 저장
+        generated_content: generatedContent, // 전체 생성된 콘텐츠 저장
       })
       .eq("id", projectId);
 

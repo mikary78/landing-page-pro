@@ -48,6 +48,7 @@ export type Database = {
           description: string | null
           document_content: string | null
           document_url: string | null
+          generated_content: string | null
           id: string
           status: string
           title: string
@@ -60,6 +61,7 @@ export type Database = {
           description?: string | null
           document_content?: string | null
           document_url?: string | null
+          generated_content?: string | null
           id?: string
           status?: string
           title: string
@@ -72,6 +74,7 @@ export type Database = {
           description?: string | null
           document_content?: string | null
           document_url?: string | null
+          generated_content?: string | null
           id?: string
           status?: string
           title?: string
