@@ -78,21 +78,27 @@ const ProjectCreate = () => {
         description: "AI가 콘텐츠를 생성하고 있습니다. 실시간으로 진행 상황을 확인하세요.",
       });
 
-      // 상세 페이지로 이동
+      // 상세 페이지로 먼저 이동
       navigate(`/project/${project.id}`);
 
-      // AI 처리 시작 (백그라운드)
-      supabase.functions.invoke("process-document", {
-        body: {
-          projectId: project.id,
-          documentContent: formData.documentContent,
-          aiModel: formData.aiModel,
-        },
-      }).then(({ error: functionError }) => {
-        if (functionError) {
-          console.error("AI processing error:", functionError);
+      // AI 처리 시작 (백그라운드에서 실행)
+      setTimeout(async () => {
+        try {
+          const { error: functionError } = await supabase.functions.invoke("process-document", {
+            body: {
+              projectId: project.id,
+              documentContent: formData.documentContent,
+              aiModel: formData.aiModel,
+            },
+          });
+
+          if (functionError) {
+            console.error("AI processing error:", functionError);
+          }
+        } catch (err) {
+          console.error("Failed to start AI processing:", err);
         }
-      });
+      }, 100);
     } catch (error) {
       console.error("Error creating project:", error);
       toast({
