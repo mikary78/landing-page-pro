@@ -21,8 +21,8 @@ serve(async (req) => {
   }
 
   try {
-    const { projectId, documentContent, aiModel, stageId, stageOrder, regenerate } = await req.json();
-    console.log('Request received:', { projectId, regenerate, stageId, aiModel });
+    const { projectId, documentContent, aiModel, stageId, stageOrder, regenerate, retryWithDifferentAi } = await req.json();
+    console.log('Request received:', { projectId, regenerate, stageId, aiModel, retryWithDifferentAi });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -34,7 +34,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // AI 모델 매핑
     const modelMap: Record<string, string> = {
       gemini: "google/gemini-2.5-flash",
       claude: "google/gemini-2.5-pro",
@@ -119,17 +118,51 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing new project: ${projectId}`);
+    console.log(`Processing project: ${projectId} with AI: ${aiModel}`);
 
+    // 프로젝트 AI 결과 레코드 생성 또는 업데이트
+    const { data: existingResult } = await supabase
+      .from('project_ai_results')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('ai_model', aiModel)
+      .single();
+
+    if (!existingResult) {
+      await supabase
+        .from('project_ai_results')
+        .insert({
+          project_id: projectId,
+          ai_model: aiModel,
+          status: 'processing',
+        });
+    } else {
+      await supabase
+        .from('project_ai_results')
+        .update({ status: 'processing' })
+        .eq('project_id', projectId)
+        .eq('ai_model', aiModel);
+    }
+
+    // 프로젝트 상태 업데이트
     await supabase
       .from('projects')
       .update({ status: 'processing' })
       .eq('id', projectId);
 
+    // 해당 AI 모델의 기존 stages 삭제 (재시도인 경우)
+    if (retryWithDifferentAi) {
+      await supabase
+        .from('project_stages')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('ai_model', aiModel);
+    }
+
     // 6단계 생성
     for (let i = 0; i < STAGE_NAMES.length; i++) {
       const stageName = STAGE_NAMES[i];
-      console.log(`Creating stage ${i + 1}: ${stageName}`);
+      console.log(`Creating stage ${i + 1}: ${stageName} for AI: ${aiModel}`);
       
       const { data: newStage, error: stageError } = await supabase
         .from('project_stages')
@@ -138,6 +171,7 @@ serve(async (req) => {
           stage_name: stageName,
           stage_order: i + 1,
           status: 'processing',
+          ai_model: aiModel,
         })
         .select()
         .single();
@@ -203,12 +237,13 @@ serve(async (req) => {
     }
 
     // 최종 결과물 생성
-    console.log('Generating final content');
+    console.log('Generating final content for AI:', aiModel);
     
     const { data: completedStages, error: stagesError } = await supabase
       .from('project_stages')
       .select('*')
       .eq('project_id', projectId)
+      .eq('ai_model', aiModel)
       .order('stage_order', { ascending: true });
 
     if (stagesError) {
@@ -219,11 +254,23 @@ serve(async (req) => {
       ?.map(stage => `## ${stage.stage_name}\n\n${stage.content || '생성 실패'}`)
       .join('\n\n---\n\n');
 
+    // AI 결과 업데이트
+    await supabase
+      .from('project_ai_results')
+      .update({ 
+        status: 'completed',
+        generated_content: finalContent,
+      })
+      .eq('project_id', projectId)
+      .eq('ai_model', aiModel);
+
+    // 프로젝트의 기본 generated_content도 업데이트 (첫 번째 AI 또는 현재 AI)
     await supabase
       .from('projects')
       .update({ 
         status: 'completed',
         generated_content: finalContent,
+        ai_model: aiModel,
       })
       .eq('id', projectId);
 

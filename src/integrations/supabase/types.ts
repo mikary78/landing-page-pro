@@ -41,8 +41,39 @@ export type Database = {
         }
         Relationships: []
       }
+      project_ai_results: {
+        Row: {
+          ai_model: string
+          created_at: string
+          generated_content: string | null
+          id: string
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_model: string
+          created_at?: string
+          generated_content?: string | null
+          id?: string
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string
+          created_at?: string
+          generated_content?: string | null
+          id?: string
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       project_stages: {
         Row: {
+          ai_model: string
           content: string | null
           created_at: string
           feedback: string | null
@@ -54,6 +85,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_model?: string
           content?: string | null
           created_at?: string
           feedback?: string | null
@@ -65,6 +97,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_model?: string
           content?: string | null
           created_at?: string
           feedback?: string | null
