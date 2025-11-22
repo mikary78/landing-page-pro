@@ -1,7 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 const CTA = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleStartClick = () => {
+    if (user) {
+      navigate('/dashboard');
+    } else {
+      navigate('/auth');
+    }
+  };
+
   return (
     <section className="py-20 md:py-32 bg-gradient-primary">
       <div className="container mx-auto px-4">
@@ -26,6 +39,7 @@ const CTA = () => {
               size="xl" 
               variant="secondary"
               className="group shadow-2xl hover:shadow-3xl"
+              onClick={handleStartClick}
             >
               무료로 시작하기
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />

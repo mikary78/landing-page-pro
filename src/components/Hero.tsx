@@ -1,8 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import heroIllustration from "@/assets/hero-illustration.jpg";
 
 const Hero = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleStartClick = () => {
+    if (user) {
+      navigate('/dashboard');
+    } else {
+      navigate('/auth');
+    }
+  };
+
   return (
     <section className="relative overflow-hidden bg-gradient-hero py-20 md:py-32">
       <div className="container mx-auto px-4">
@@ -26,7 +39,12 @@ const Hero = () => {
             </p>
             
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-              <Button size="xl" variant="hero" className="group">
+              <Button 
+                size="xl" 
+                variant="hero" 
+                className="group"
+                onClick={handleStartClick}
+              >
                 무료로 시작하기
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
