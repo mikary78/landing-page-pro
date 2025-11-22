@@ -41,6 +41,45 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          ai_model: string
+          created_at: string
+          description: string | null
+          document_content: string | null
+          document_url: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_model?: string
+          created_at?: string
+          description?: string | null
+          document_content?: string | null
+          document_url?: string | null
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_model?: string
+          created_at?: string
+          description?: string | null
+          document_content?: string | null
+          document_url?: string | null
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

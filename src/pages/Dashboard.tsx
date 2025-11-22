@@ -57,7 +57,11 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" size="lg">
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={() => navigate('/project/create')}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 프로젝트 시작
               </Button>
