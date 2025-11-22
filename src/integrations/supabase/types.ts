@@ -41,6 +41,50 @@ export type Database = {
         }
         Relationships: []
       }
+      project_stages: {
+        Row: {
+          content: string | null
+          created_at: string
+          feedback: string | null
+          id: string
+          project_id: string
+          stage_name: string
+          stage_order: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          project_id: string
+          stage_name: string
+          stage_order: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          project_id?: string
+          stage_name?: string
+          stage_order?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_stages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           ai_model: string

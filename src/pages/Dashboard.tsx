@@ -226,7 +226,7 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>프로젝트 목록</CardTitle>
+            <CardTitle>내 프로젝트 관리</CardTitle>
             <CardDescription>
               생성 중이거나 완료된 프로젝트를 확인하고 관리하세요
             </CardDescription>
@@ -244,47 +244,57 @@ const Dashboard = () => {
                 <p className="text-sm mt-2">새 프로젝트를 생성하여 시작해보세요</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {projects.map((project) => (
-                  <Card key={project.id} className="hover:shadow-md transition-shadow">
+                  <Card 
+                    key={project.id} 
+                    className="hover:shadow-lg transition-all cursor-pointer group border-2 hover:border-primary/40"
+                    onClick={() => navigate(`/project/${project.id}`)}
+                  >
                     <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <CardTitle className="text-lg">{project.title}</CardTitle>
-                            {getStatusBadge(project.status)}
-                          </div>
-                          {project.description && (
-                            <CardDescription className="line-clamp-2">
-                              {project.description}
-                            </CardDescription>
-                          )}
-                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                            <span>생성: {new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
-                            <span>AI 모델: {project.ai_model.toUpperCase()}</span>
-                          </div>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                          <FileText className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="flex gap-2">
-                          {project.status === "completed" && project.generated_content && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                // 결과물 보기 기능 (향후 구현)
-                                toast({
-                                  title: "결과물",
-                                  description: project.generated_content?.substring(0, 200) + "...",
-                                });
-                              }}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              결과 보기
-                            </Button>
-                          )}
+                        {getStatusBadge(project.status)}
+                      </div>
+                      <CardTitle className="text-lg line-clamp-1">{project.title}</CardTitle>
+                      {project.description && (
+                        <CardDescription className="line-clamp-2 min-h-[40px]">
+                          {project.description}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">생성일</span>
+                          <span className="font-medium">{new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">AI 모델</span>
+                          <span className="font-medium">{project.ai_model.toUpperCase()}</span>
+                        </div>
+                        <div className="pt-2 border-t flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteProject(project.id)}
+                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/project/${project.id}`);
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            상세보기
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProject(project.id);
+                            }}
                             disabled={deletingId === project.id}
                           >
                             {deletingId === project.id ? (
@@ -295,7 +305,7 @@ const Dashboard = () => {
                           </Button>
                         </div>
                       </div>
-                    </CardHeader>
+                    </CardContent>
                   </Card>
                 ))}
               </div>

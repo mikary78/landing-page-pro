@@ -6,20 +6,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const STAGE_NAMES = [
+  "콘텐츠 기획",
+  "시나리오 작성", 
+  "이미지 생성",
+  "음성/영상 제작",
+  "콘텐츠 조립",
+  "배포"
+];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { projectId, documentContent, aiModel } = await req.json();
-
-    if (!projectId || !documentContent || !aiModel) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { projectId, documentContent, aiModel, stageId, stageOrder, regenerate } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -34,99 +36,171 @@ serve(async (req) => {
     // AI 모델 매핑
     const modelMap: Record<string, string> = {
       gemini: "google/gemini-2.5-flash",
-      claude: "google/gemini-2.5-pro", // Claude 대신 Gemini Pro 사용
+      claude: "google/gemini-2.5-pro",
       chatgpt: "openai/gpt-5-mini",
     };
 
     const selectedModel = modelMap[aiModel] || "google/gemini-2.5-flash";
 
-    console.log(`Processing document with model: ${selectedModel}`);
+    // 재생성 요청인 경우
+    if (regenerate && stageId) {
+      const { data: stage } = await supabase
+        .from('project_stages')
+        .select('*')
+        .eq('id', stageId)
+        .single();
 
-    // AI에게 교육 콘텐츠 생성 요청
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: [
-          {
-            role: "system",
-            content: `당신은 교육 콘텐츠 전문가입니다. MVP/PRD 문서를 분석하여 6단계 교육 콘텐츠를 생성합니다:
-1. 콘텐츠 기획 - 학습 목표와 대상 설정
-2. 시나리오 작성 - 실제 업무 상황 기반 스토리
-3. 대본 작성 - 학습자와 강사의 대화
-4. 이미지 생성 가이드 - 시각 자료 설명
-5. 영상 촬영 가이드 - 촬영 시나리오
-6. 편집 및 배포 계획
+      if (!stage) {
+        throw new Error('Stage not found');
+      }
 
-각 단계를 구체적이고 실행 가능하게 작성해주세요.`,
-          },
-          {
-            role: "user",
-            content: `다음 MVP/PRD 문서를 기반으로 교육 콘텐츠를 생성해주세요:\n\n${documentContent}`,
-          },
-        ],
-      }),
-    });
+      console.log(`Regenerating stage: ${stage.stage_name}`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      
-      // 프로젝트 상태를 failed로 업데이트
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            {
+              role: 'system',
+              content: '당신은 교육 콘텐츠 생성 전문가입니다. 사용자의 피드백을 반영하여 콘텐츠를 개선합니다.'
+            },
+            {
+              role: 'user',
+              content: `다음 단계를 사용자 피드백에 따라 재생성해주세요:\n\n단계: ${stage.stage_name}\n기존 콘텐츠: ${stage.content}\n사용자 피드백: ${stage.feedback}\n\n피드백을 반영하여 개선된 콘텐츠를 생성해주세요.`
+            }
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        await supabase
+          .from('project_stages')
+          .update({ status: 'failed' })
+          .eq('id', stageId);
+        throw new Error('AI content generation failed');
+      }
+
+      const data = await response.json();
+      const generatedContent = data.choices?.[0]?.message?.content;
+
       await supabase
-        .from("projects")
-        .update({ status: "failed" })
-        .eq("id", projectId);
+        .from('project_stages')
+        .update({ 
+          content: generatedContent,
+          status: 'completed',
+        })
+        .eq('id', stageId);
 
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required. Please add credits to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      throw new Error(`AI Gateway error: ${response.status}`);
+      return new Response(
+        JSON.stringify({ success: true, content: generatedContent }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const data = await response.json();
-    const generatedContent = data.choices?.[0]?.message?.content;
-
-    if (!generatedContent) {
-      throw new Error("No content generated from AI");
+    // 새 프로젝트 처리
+    if (!projectId || !documentContent || !aiModel) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    console.log("Content generated successfully");
+    console.log(`Processing new project with model: ${selectedModel}`);
 
-    // 프로젝트 상태를 completed로 업데이트하고 생성된 콘텐츠 저장
-    const { error: updateError } = await supabase
-      .from("projects")
+    await supabase
+      .from('projects')
+      .update({ status: 'processing' })
+      .eq('id', projectId);
+
+    // 6단계 생성
+    for (let i = 0; i < STAGE_NAMES.length; i++) {
+      const stageName = STAGE_NAMES[i];
+      
+      const { data: newStage, error: stageError } = await supabase
+        .from('project_stages')
+        .insert({
+          project_id: projectId,
+          stage_name: stageName,
+          stage_order: i + 1,
+          status: 'processing',
+        })
+        .select()
+        .single();
+
+      if (stageError) {
+        console.error('Stage creation error:', stageError);
+        continue;
+      }
+
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            {
+              role: 'system',
+              content: '당신은 교육 콘텐츠 생성 전문가입니다. 각 단계에 맞는 구체적이고 실용적인 콘텐츠를 생성합니다.'
+            },
+            {
+              role: 'user',
+              content: `문서: ${documentContent}\n\n"${stageName}" 단계에 대한 상세 콘텐츠를 생성해주세요. 구체적이고 실행 가능한 내용으로 작성해주세요.`
+            }
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        await supabase
+          .from('project_stages')
+          .update({ status: 'failed' })
+          .eq('id', newStage.id);
+        continue;
+      }
+
+      const data = await response.json();
+      const stageContent = data.choices?.[0]?.message?.content;
+
+      await supabase
+        .from('project_stages')
+        .update({ 
+          content: stageContent,
+          status: 'completed',
+        })
+        .eq('id', newStage.id);
+    }
+
+    // 최종 결과물 생성
+    const { data: completedStages } = await supabase
+      .from('project_stages')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('stage_order', { ascending: true });
+
+    const finalContent = completedStages
+      ?.map(stage => `## ${stage.stage_name}\n\n${stage.content}`)
+      .join('\n\n---\n\n');
+
+    await supabase
+      .from('projects')
       .update({ 
-        status: "completed",
-        description: generatedContent.substring(0, 500), // 처음 500자를 설명으로 저장
-        generated_content: generatedContent, // 전체 생성된 콘텐츠 저장
+        status: 'completed',
+        generated_content: finalContent,
       })
-      .eq("id", projectId);
-
-    if (updateError) {
-      console.error("Error updating project:", updateError);
-      throw updateError;
-    }
+      .eq('id', projectId);
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        content: generatedContent,
+        content: finalContent,
       }),
       { 
         status: 200, 
