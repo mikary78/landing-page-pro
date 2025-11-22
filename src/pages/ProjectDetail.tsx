@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3, Save } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import { InfographicPreview } from "@/components/InfographicPreview";
 import jsPDF from 'jspdf';
@@ -38,6 +38,7 @@ const ProjectDetail = () => {
   const [loadingProject, setLoadingProject] = useState(true);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [processingStage, setProcessingStage] = useState<string | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -463,6 +464,44 @@ const ProjectDetail = () => {
     }
   };
 
+  const handleSaveAsTemplate = async () => {
+    if (!project || !user) return;
+
+    const templateName = prompt("템플릿 이름을 입력하세요:", `${project.title} 템플릿`);
+    if (!templateName) return;
+
+    try {
+      setSavingTemplate(true);
+      const { error } = await supabase
+        .from("project_templates")
+        .insert({
+          user_id: user.id,
+          template_name: templateName,
+          description: project.description,
+          education_session: project.education_session,
+          education_duration: project.education_duration,
+          education_course: project.education_course,
+          ai_model: project.ai_model,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "템플릿 저장 완료",
+        description: "프로젝트가 템플릿으로 저장되었습니다.",
+      });
+    } catch (error) {
+      console.error("Error saving template:", error);
+      toast({
+        title: "오류 발생",
+        description: "템플릿 저장 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   if (loading || loadingProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -483,14 +522,30 @@ const ProjectDetail = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/dashboard')}
-          className="mb-6"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          프로젝트 목록으로
-        </Button>
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            프로젝트 목록으로
+          </Button>
+          
+          {project.status === 'completed' && (
+            <Button 
+              variant="outline" 
+              onClick={handleSaveAsTemplate}
+              disabled={savingTemplate}
+            >
+              {savingTemplate ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              템플릿으로 저장
+            </Button>
+          )}
+        </div>
 
         {/* 프로젝트 헤더 */}
         <div className="mb-8">
