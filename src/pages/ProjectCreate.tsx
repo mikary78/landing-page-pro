@@ -73,31 +73,26 @@ const ProjectCreate = () => {
 
       if (projectError) throw projectError;
 
-      // AI 처리 시작
-      const { error: functionError } = await supabase.functions.invoke("process-document", {
+      toast({
+        title: "프로젝트 생성 완료",
+        description: "AI가 콘텐츠를 생성하고 있습니다. 실시간으로 진행 상황을 확인하세요.",
+      });
+
+      // 상세 페이지로 이동
+      navigate(`/project/${project.id}`);
+
+      // AI 처리 시작 (백그라운드)
+      supabase.functions.invoke("process-document", {
         body: {
           projectId: project.id,
           documentContent: formData.documentContent,
           aiModel: formData.aiModel,
         },
+      }).then(({ error: functionError }) => {
+        if (functionError) {
+          console.error("AI processing error:", functionError);
+        }
       });
-
-      if (functionError) {
-        console.error("AI processing error:", functionError);
-        // 에러가 발생해도 프로젝트는 생성되었으므로 대시보드로 이동
-        toast({
-          title: "프로젝트 생성됨",
-          description: "AI 처리 중 문제가 발생했습니다. 나중에 다시 시도해주세요.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "프로젝트 생성 완료",
-          description: "AI가 콘텐츠를 생성하고 있습니다. 잠시 후 결과를 확인하실 수 있습니다.",
-        });
-      }
-
-      navigate("/dashboard");
     } catch (error) {
       console.error("Error creating project:", error);
       toast({

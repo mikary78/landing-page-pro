@@ -81,9 +81,20 @@ const ProjectDetail = () => {
         .select("*")
         .eq("id", id)
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (projectError) throw projectError;
+      
+      if (!projectData) {
+        toast({
+          title: "프로젝트를 찾을 수 없습니다",
+          description: "존재하지 않거나 접근 권한이 없는 프로젝트입니다.",
+          variant: "destructive",
+        });
+        navigate('/dashboard');
+        return;
+      }
+      
       setProject(projectData);
 
       // 단계 정보 가져오기

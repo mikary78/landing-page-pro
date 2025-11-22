@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Rocket, LogOut } from "lucide-react";
+import { Rocket, LogOut, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 
@@ -37,6 +37,12 @@ const Header = () => {
           <div className="flex items-center gap-4">
             {user ? (
               <>
+                <Link to="/dashboard">
+                  <Button variant="outline" className="gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    내 프로젝트
+                  </Button>
+                </Link>
                 <span className="text-sm text-muted-foreground hidden md:inline">
                   {user.email}
                 </span>
