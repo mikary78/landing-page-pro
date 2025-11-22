@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,11 +97,7 @@ const Demo = () => {
       {/* Hero Section */}
       <section className="pt-32 pb-16 px-4">
         <div className="container mx-auto max-w-6xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
+          <div className="animate-fade-in">
             <Badge className="mb-4 text-sm px-4 py-2">
               <Sparkles className="w-4 h-4 mr-2" />
               라이브 데모
@@ -113,7 +108,7 @@ const Demo = () => {
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               브리프부터 배포까지, 교육콘텐츠 자동 생성 과정을 직접 체험해보세요
             </p>
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -149,13 +144,11 @@ const Demo = () => {
           {/* Progress Bar */}
           <div className="relative mb-16">
             <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-primary via-accent to-success"
-                initial={{ width: "0%" }}
-                animate={{ 
+              <div
+                className="h-full bg-gradient-to-r from-primary via-accent to-success transition-all duration-500"
+                style={{ 
                   width: `${((currentStage + 1) / stages.length) * 100}%` 
                 }}
-                transition={{ duration: 0.5 }}
               />
             </div>
           </div>
@@ -168,11 +161,10 @@ const Demo = () => {
               const isCompleted = index < currentStage;
               
               return (
-                <motion.div
+                <div
                   key={stage.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 0.1}s` }}
                 >
                   <Card
                     className={`relative overflow-hidden transition-all duration-500 cursor-pointer ${
@@ -207,56 +199,44 @@ const Demo = () => {
                       </p>
                       
                       {isCompleted && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute top-4 right-4"
-                        >
+                        <div className="absolute top-4 right-4">
                           <CheckCircle2 className="w-6 h-6 text-success" />
-                        </motion.div>
+                        </div>
                       )}
                     </div>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>
 
           {/* Current Stage Detail */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStage}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="p-8 bg-gradient-to-br from-primary/5 to-accent/5">
-                <div className="flex items-start gap-6">
-                  <div className="p-4 rounded-xl bg-primary/10">
-                    {(() => {
-                      const Icon = stages[currentStage].icon;
-                      return <Icon className="w-12 h-12 text-primary" />;
-                    })()}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold mb-2">
-                      {stages[currentStage].name}
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      {stages[currentStage].description}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="w-4 h-4 text-primary" />
-                      <span className="font-medium">
-                        예상 소요시간: {stages[currentStage].time}
-                      </span>
-                    </div>
+          <div className="transition-opacity duration-300">
+            <Card className="p-8 bg-gradient-to-br from-primary/5 to-accent/5">
+              <div className="flex items-start gap-6">
+                <div className="p-4 rounded-xl bg-primary/10">
+                  {(() => {
+                    const Icon = stages[currentStage].icon;
+                    return <Icon className="w-12 h-12 text-primary" />;
+                  })()}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold mb-2">
+                    {stages[currentStage].name}
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    {stages[currentStage].description}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="font-medium">
+                      예상 소요시간: {stages[currentStage].time}
+                    </span>
                   </div>
                 </div>
-              </Card>
-            </motion.div>
-          </AnimatePresence>
+              </div>
+            </Card>
+          </div>
         </div>
       </section>
 
@@ -335,12 +315,7 @@ const Demo = () => {
       {/* CTA Section */}
       <section className="py-16 px-4 bg-gradient-to-br from-primary/10 via-accent/10 to-success/10">
         <div className="container mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
+          <div className="animate-fade-in">
             <h2 className="text-4xl font-bold mb-6">
               지금 바로 시작하세요
             </h2>
@@ -356,7 +331,7 @@ const Demo = () => {
                 더 알아보기
               </Button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
