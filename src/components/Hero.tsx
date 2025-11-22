@@ -48,7 +48,11 @@ const Hero = () => {
                 무료로 시작하기
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
-              <Button size="xl" variant="outline">
+              <Button 
+                size="xl" 
+                variant="outline"
+                onClick={() => navigate('/demo')}
+              >
                 데모 보기
               </Button>
             </div>
