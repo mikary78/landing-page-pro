@@ -13,6 +13,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Clock, BookOpen, Brain, 
 interface BriefWizardProps {
   onComplete: (data: BriefData) => void;
   onCancel: () => void;
+  initialData?: Partial<BriefData>;
 }
 
 export interface BriefData {
@@ -25,16 +26,16 @@ export interface BriefData {
   aiModel: string;
 }
 
-const BriefWizard = ({ onComplete, onCancel }: BriefWizardProps) => {
+const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<BriefData>({
-    title: "",
-    description: "",
-    educationDuration: "",
-    educationCourse: "",
-    educationSession: "",
-    documentContent: "",
-    aiModel: "gemini",
+    title: initialData?.title || "",
+    description: initialData?.description || "",
+    educationDuration: initialData?.educationDuration || "",
+    educationCourse: initialData?.educationCourse || "",
+    educationSession: initialData?.educationSession || "",
+    documentContent: initialData?.documentContent || "",
+    aiModel: initialData?.aiModel || "gemini",
   });
 
   const totalSteps = 5;

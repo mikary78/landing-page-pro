@@ -85,6 +85,45 @@ export type Database = {
           },
         ]
       }
+      project_templates: {
+        Row: {
+          ai_model: string
+          created_at: string
+          description: string | null
+          education_course: string | null
+          education_duration: string | null
+          education_session: number | null
+          id: string
+          template_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_model?: string
+          created_at?: string
+          description?: string | null
+          education_course?: string | null
+          education_duration?: string | null
+          education_session?: number | null
+          id?: string
+          template_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_model?: string
+          created_at?: string
+          description?: string | null
+          education_course?: string | null
+          education_duration?: string | null
+          education_session?: number | null
+          id?: string
+          template_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           ai_model: string
