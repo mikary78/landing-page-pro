@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Clock, CheckCircle2, Brain, Sparkles, TrendingUp } from "lucide-react";
+import { FileText, Clock, CheckCircle2, Brain, Sparkles, TrendingUp, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState } from "react";
 
 interface InfographicPreviewProps {
   title: string;
@@ -17,15 +19,6 @@ interface InfographicPreviewProps {
   generatedContent?: string;
 }
 
-const STAGE_ICONS = [
-  FileText,
-  FileText,
-  Sparkles,
-  Brain,
-  CheckCircle2,
-  TrendingUp
-];
-
 export const InfographicPreview = ({ 
   title, 
   description, 
@@ -36,6 +29,7 @@ export const InfographicPreview = ({
 }: InfographicPreviewProps) => {
   const completedStages = stages.filter(s => s.status === 'completed').length;
   const progressPercentage = stages.length > 0 ? (completedStages / stages.length) * 100 : 0;
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   // Parse generated content into sections
   const parseSections = (content?: string) => {
@@ -51,169 +45,196 @@ export const InfographicPreview = ({
 
   const sections = parseSections(generatedContent);
 
+  const toggleSection = (index: number) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
   return (
-    <div className="space-y-6">
-      {/* 헤더 카드 */}
-      <Card className="bg-gradient-to-br from-primary/10 via-accent/5 to-success/10 border-2">
-        <CardHeader className="text-center pb-4">
-          <div className="mx-auto w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-4">
-            <FileText className="w-10 h-10 text-primary" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+      {/* 헤더 섹션 */}
+      <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 text-white py-16 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-block px-4 py-2 bg-white/20 rounded-full text-sm mb-6">
+            {aiModel.toUpperCase()} 생성 보고서
           </div>
-          <CardTitle className="text-3xl mb-2">{title}</CardTitle>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">{title}</h1>
           {description && (
-            <p className="text-muted-foreground">{description}</p>
+            <p className="text-xl text-blue-100">{description}</p>
           )}
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-background/50 rounded-lg">
-              <div className="text-2xl font-bold text-primary mb-1">
-                {Math.round(progressPercentage)}%
-              </div>
-              <div className="text-xs text-muted-foreground">진행률</div>
-            </div>
-            <div className="text-center p-4 bg-background/50 rounded-lg">
-              <div className="text-2xl font-bold text-success mb-1">
-                {completedStages}
-              </div>
-              <div className="text-xs text-muted-foreground">완료 단계</div>
-            </div>
-            <div className="text-center p-4 bg-background/50 rounded-lg">
-              <div className="text-2xl font-bold text-accent mb-1">
-                {stages.length}
-              </div>
-              <div className="text-xs text-muted-foreground">총 단계</div>
-            </div>
-            <div className="text-center p-4 bg-background/50 rounded-lg">
-              <div className="text-xl font-bold text-foreground mb-1 uppercase">
-                {aiModel}
-              </div>
-              <div className="text-xs text-muted-foreground">AI 모델</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* 최종 결과물 요약 보고서 */}
-      {generatedContent ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              최종 결과물 요약
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {sections.map((section, index) => (
-                <div key={index} className="border-l-4 border-primary/30 pl-6 py-2">
-                  <h3 className="text-xl font-bold mb-3 text-primary">{section.title}</h3>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                    {section.content}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              프로세스 진행 상황
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stages.map((stage, index) => {
-                const Icon = STAGE_ICONS[index] || FileText;
-                const isCompleted = stage.status === 'completed';
-                const isProcessing = stage.status === 'processing';
-                
-                return (
-                  <div key={stage.id} className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
-                    <div 
-                      className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        isCompleted 
-                          ? 'bg-success' 
-                          : isProcessing 
-                          ? 'bg-primary animate-pulse' 
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <Icon className={`w-6 h-6 ${
-                        isCompleted || isProcessing ? 'text-white' : 'text-muted-foreground'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">
-                          {stage.stage_order}. {stage.stage_name}
-                        </h3>
-                        <Badge 
-                          variant={
-                            isCompleted ? 'default' : 
-                            isProcessing ? 'secondary' : 
-                            'outline'
-                          }
-                          className={
-                            isCompleted ? 'bg-success' : 
-                            isProcessing ? 'bg-primary' : 
-                            ''
-                          }
-                        >
-                          {isCompleted ? '완료' : isProcessing ? '처리 중' : '대기'}
-                        </Badge>
+      {/* 메인 컨텐츠 */}
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 왼쪽 메인 컨텐츠 */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 개요 카드 */}
+            <Card className="border-2 border-blue-100 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent">
+                <CardTitle className="flex items-center gap-2 text-blue-700">
+                  <Sparkles className="w-5 h-5" />
+                  프로젝트 개요
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {generatedContent ? (
+                  <div className="prose prose-sm max-w-none">
+                    {sections.slice(0, 1).map((section, index) => (
+                      <div key={index}>
+                        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {section.content}
+                        </p>
                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">아직 결과물이 생성되지 않았습니다.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 상세 섹션들 */}
+            {sections.slice(1).map((section, index) => (
+              <Collapsible
+                key={index + 1}
+                open={openSections[index + 1] ?? false}
+                onOpenChange={() => toggleSection(index + 1)}
+              >
+                <Card className="border-2 border-blue-100 shadow-lg overflow-hidden">
+                  <CollapsibleTrigger className="w-full">
+                    <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-400 text-white hover:from-blue-600 hover:to-blue-500 transition-all cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          <CardTitle className="text-lg">{section.title}</CardTitle>
+                        </div>
+                        <ChevronDown 
+                          className={`w-5 h-5 transition-transform ${openSections[index + 1] ? 'rotate-180' : ''}`} 
+                        />
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-6">
+                      <div className="prose prose-sm max-w-none">
+                        <div className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {section.content}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            ))}
+          </div>
+
+          {/* 오른쪽 사이드바 */}
+          <div className="space-y-6">
+            {/* 프로젝트 정보 */}
+            <Card className="border-2 border-blue-100 shadow-lg sticky top-6">
+              <CardHeader className="bg-gradient-to-br from-blue-50 to-transparent">
+                <CardTitle className="text-lg text-blue-700">📋 프로젝트 정보</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm font-medium text-blue-900">진행률</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-blue-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500"
+                          style={{ width: `${progressPercentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-blue-600">
+                        {Math.round(progressPercentage)}%
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 타임라인 */}
-      <Card className="bg-muted/30">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            프로젝트 타임라인
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-background rounded-lg">
-              <span className="text-sm font-medium">프로젝트 생성</span>
-              <span className="text-sm text-muted-foreground">
-                {new Date(createdAt).toLocaleString('ko-KR')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-background rounded-lg">
-              <span className="text-sm font-medium">완료 단계</span>
-              <span className="text-sm font-bold text-success">
-                {completedStages} / {stages.length}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-background rounded-lg">
-              <span className="text-sm font-medium">진행률</span>
-              <div className="flex items-center gap-3">
-                <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-primary via-accent to-success transition-all duration-500"
-                    style={{ width: `${progressPercentage}%` }}
-                  />
+                  
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm font-medium text-green-900">완료 단계</span>
+                    <span className="text-sm font-bold text-green-600">
+                      {completedStages} / {stages.length}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <span className="text-sm font-medium text-purple-900">AI 모델</span>
+                    <Badge className="bg-purple-500 hover:bg-purple-600">
+                      {aiModel.toUpperCase()}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-900">생성일</span>
+                    <span className="text-xs text-gray-600">
+                      {new Date(createdAt).toLocaleDateString('ko-KR')}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-sm font-bold text-primary">
-                  {Math.round(progressPercentage)}%
-                </span>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+
+            {/* 프로세스 단계 */}
+            <Card className="border-2 border-blue-100 shadow-lg">
+              <CardHeader className="bg-gradient-to-br from-blue-50 to-transparent">
+                <CardTitle className="text-lg text-blue-700">🔄 프로세스 단계</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  {stages.map((stage) => {
+                    const isCompleted = stage.status === 'completed';
+                    const isProcessing = stage.status === 'processing';
+                    
+                    return (
+                      <div 
+                        key={stage.id} 
+                        className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
+                          isCompleted ? 'bg-green-50' :
+                          isProcessing ? 'bg-blue-50' :
+                          'bg-gray-50'
+                        }`}
+                      >
+                        <div 
+                          className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isCompleted ? 'bg-green-500' :
+                            isProcessing ? 'bg-blue-500 animate-pulse' :
+                            'bg-gray-300'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          ) : (
+                            <span className="text-xs font-bold text-white">
+                              {stage.stage_order}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${
+                            isCompleted ? 'text-green-900' :
+                            isProcessing ? 'text-blue-900' :
+                            'text-gray-600'
+                          }`}>
+                            {stage.stage_name}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
