@@ -92,6 +92,9 @@ export type Database = {
           description: string | null
           document_content: string | null
           document_url: string | null
+          education_course: string | null
+          education_duration: string | null
+          education_session: number | null
           generated_content: string | null
           id: string
           status: string
@@ -105,6 +108,9 @@ export type Database = {
           description?: string | null
           document_content?: string | null
           document_url?: string | null
+          education_course?: string | null
+          education_duration?: string | null
+          education_session?: number | null
           generated_content?: string | null
           id?: string
           status?: string
@@ -118,6 +124,9 @@ export type Database = {
           description?: string | null
           document_content?: string | null
           document_url?: string | null
+          education_course?: string | null
+          education_duration?: string | null
+          education_session?: number | null
           generated_content?: string | null
           id?: string
           status?: string

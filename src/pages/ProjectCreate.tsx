@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, FileText } from "lucide-react";
 
@@ -22,6 +23,9 @@ const ProjectCreate = () => {
     description: "",
     documentContent: "",
     aiModel: "gemini",
+    educationDuration: "",
+    educationCourse: "",
+    educationSession: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,6 +71,9 @@ const ProjectCreate = () => {
           document_content: formData.documentContent,
           ai_model: formData.aiModel,
           status: "processing",
+          education_duration: formData.educationDuration || null,
+          education_course: formData.educationCourse || null,
+          education_session: formData.educationSession ? parseInt(formData.educationSession) : null,
         })
         .select()
         .single();
@@ -158,6 +165,76 @@ const ProjectCreate = () => {
                   }
                   rows={3}
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="educationDuration">교육시간</Label>
+                  <Select
+                    value={formData.educationDuration}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, educationDuration: value })
+                    }
+                  >
+                    <SelectTrigger id="educationDuration" className="bg-background">
+                      <SelectValue placeholder="선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="1시간">1시간</SelectItem>
+                      <SelectItem value="2시간">2시간</SelectItem>
+                      <SelectItem value="3시간">3시간</SelectItem>
+                      <SelectItem value="4시간">4시간</SelectItem>
+                      <SelectItem value="반나절">반나절 (4-6시간)</SelectItem>
+                      <SelectItem value="하루">하루 (8시간)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="educationCourse">교육과정</Label>
+                  <Select
+                    value={formData.educationCourse}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, educationCourse: value })
+                    }
+                  >
+                    <SelectTrigger id="educationCourse" className="bg-background">
+                      <SelectValue placeholder="선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="기본과정">기본과정</SelectItem>
+                      <SelectItem value="심화과정">심화과정</SelectItem>
+                      <SelectItem value="실무과정">실무과정</SelectItem>
+                      <SelectItem value="전문가과정">전문가과정</SelectItem>
+                      <SelectItem value="입문과정">입문과정</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="educationSession">교육 회차</Label>
+                  <Select
+                    value={formData.educationSession}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, educationSession: value })
+                    }
+                  >
+                    <SelectTrigger id="educationSession" className="bg-background">
+                      <SelectValue placeholder="선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="1">1회차</SelectItem>
+                      <SelectItem value="2">2회차</SelectItem>
+                      <SelectItem value="3">3회차</SelectItem>
+                      <SelectItem value="4">4회차</SelectItem>
+                      <SelectItem value="5">5회차</SelectItem>
+                      <SelectItem value="6">6회차</SelectItem>
+                      <SelectItem value="8">8회차</SelectItem>
+                      <SelectItem value="10">10회차</SelectItem>
+                      <SelectItem value="12">12회차</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
