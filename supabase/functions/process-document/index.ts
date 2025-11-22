@@ -22,6 +22,7 @@ serve(async (req) => {
 
   try {
     const { projectId, documentContent, aiModel, stageId, stageOrder, regenerate } = await req.json();
+    console.log('Request received:', { projectId, regenerate, stageId, aiModel });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -41,16 +42,20 @@ serve(async (req) => {
     };
 
     const selectedModel = modelMap[aiModel] || "google/gemini-2.5-flash";
+    console.log(`Using model: ${selectedModel}`);
 
     // 재생성 요청인 경우
     if (regenerate && stageId) {
-      const { data: stage } = await supabase
+      console.log(`Regenerating stage: ${stageId}`);
+      
+      const { data: stage, error: stageError } = await supabase
         .from('project_stages')
         .select('*')
         .eq('id', stageId)
         .single();
 
-      if (!stage) {
+      if (stageError || !stage) {
+        console.error('Stage not found:', stageError);
         throw new Error('Stage not found');
       }
 
@@ -78,6 +83,7 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
+        console.error('AI API error:', response.status, await response.text());
         await supabase
           .from('project_stages')
           .update({ status: 'failed' })
@@ -96,6 +102,8 @@ serve(async (req) => {
         })
         .eq('id', stageId);
 
+      console.log('Stage regeneration completed');
+
       return new Response(
         JSON.stringify({ success: true, content: generatedContent }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -104,13 +112,14 @@ serve(async (req) => {
 
     // 새 프로젝트 처리
     if (!projectId || !documentContent || !aiModel) {
+      console.error('Missing required fields:', { projectId, documentContent, aiModel });
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Processing new project with model: ${selectedModel}`);
+    console.log(`Processing new project: ${projectId}`);
 
     await supabase
       .from('projects')
@@ -120,6 +129,7 @@ serve(async (req) => {
     // 6단계 생성
     for (let i = 0; i < STAGE_NAMES.length; i++) {
       const stageName = STAGE_NAMES[i];
+      console.log(`Creating stage ${i + 1}: ${stageName}`);
       
       const { data: newStage, error: stageError } = await supabase
         .from('project_stages')
@@ -137,56 +147,76 @@ serve(async (req) => {
         continue;
       }
 
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            {
-              role: 'system',
-              content: '당신은 교육 콘텐츠 생성 전문가입니다. 각 단계에 맞는 구체적이고 실용적인 콘텐츠를 생성합니다.'
-            },
-            {
-              role: 'user',
-              content: `문서: ${documentContent}\n\n"${stageName}" 단계에 대한 상세 콘텐츠를 생성해주세요. 구체적이고 실행 가능한 내용으로 작성해주세요.`
-            }
-          ],
-        }),
-      });
+      console.log(`Stage created: ${newStage.id}`);
 
-      if (!response.ok) {
+      try {
+        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [
+              {
+                role: 'system',
+                content: '당신은 교육 콘텐츠 생성 전문가입니다. 각 단계에 맞는 구체적이고 실용적인 콘텐츠를 생성합니다.'
+              },
+              {
+                role: 'user',
+                content: `문서: ${documentContent}\n\n"${stageName}" 단계에 대한 상세 콘텐츠를 생성해주세요. 구체적이고 실행 가능한 내용으로 작성해주세요.`
+              }
+            ],
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`AI API error for stage ${stageName}:`, response.status, errorText);
+          await supabase
+            .from('project_stages')
+            .update({ status: 'failed' })
+            .eq('id', newStage.id);
+          continue;
+        }
+
+        const data = await response.json();
+        const stageContent = data.choices?.[0]?.message?.content;
+
+        await supabase
+          .from('project_stages')
+          .update({ 
+            content: stageContent,
+            status: 'completed',
+          })
+          .eq('id', newStage.id);
+
+        console.log(`Stage ${stageName} completed successfully`);
+      } catch (error) {
+        console.error(`Error generating content for stage ${stageName}:`, error);
         await supabase
           .from('project_stages')
           .update({ status: 'failed' })
           .eq('id', newStage.id);
-        continue;
       }
-
-      const data = await response.json();
-      const stageContent = data.choices?.[0]?.message?.content;
-
-      await supabase
-        .from('project_stages')
-        .update({ 
-          content: stageContent,
-          status: 'completed',
-        })
-        .eq('id', newStage.id);
     }
 
     // 최종 결과물 생성
-    const { data: completedStages } = await supabase
+    console.log('Generating final content');
+    
+    const { data: completedStages, error: stagesError } = await supabase
       .from('project_stages')
       .select('*')
       .eq('project_id', projectId)
       .order('stage_order', { ascending: true });
 
+    if (stagesError) {
+      console.error('Error fetching stages:', stagesError);
+    }
+
     const finalContent = completedStages
-      ?.map(stage => `## ${stage.stage_name}\n\n${stage.content}`)
+      ?.map(stage => `## ${stage.stage_name}\n\n${stage.content || '생성 실패'}`)
       .join('\n\n---\n\n');
 
     await supabase
@@ -196,6 +226,8 @@ serve(async (req) => {
         generated_content: finalContent,
       })
       .eq('id', projectId);
+
+    console.log('Project processing completed');
 
     return new Response(
       JSON.stringify({ 
