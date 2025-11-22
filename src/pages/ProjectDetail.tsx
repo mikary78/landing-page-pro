@@ -61,13 +61,45 @@ const ProjectDetail = () => {
             fetchProjectDetails();
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'projects',
+            filter: `id=eq.${id}`,
+          },
+          () => {
+            fetchProjectDetails();
+          }
+        )
         .subscribe();
+
+      // stages가 비어있으면 3초마다 재시도 (최대 10번)
+      let retryCount = 0;
+      const maxRetries = 10;
+      const pollingInterval = setInterval(() => {
+        if (retryCount >= maxRetries) {
+          clearInterval(pollingInterval);
+          return;
+        }
+        
+        // stages가 여전히 비어있으면 다시 페칭
+        if (stages.length === 0) {
+          console.log('Retrying to fetch project details...');
+          fetchProjectDetails();
+          retryCount++;
+        } else {
+          clearInterval(pollingInterval);
+        }
+      }, 3000);
 
       return () => {
         supabase.removeChannel(channel);
+        clearInterval(pollingInterval);
       };
     }
-  }, [user, id]);
+  }, [user, id, stages.length]);
 
   const fetchProjectDetails = async () => {
     if (!user || !id) return;
