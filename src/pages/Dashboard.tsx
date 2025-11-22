@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import Header from "@/components/Header";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Rocket, Zap, CheckCircle2, Loader2, Trash2, Eye } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Header from "@/components/Header";
+import { DashboardStats } from "@/components/DashboardStats";
+import { Plus, Loader2, Trash2, FileText, Zap, Brain } from "lucide-react";
+import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
 
 type Project = Tables<"projects">;
@@ -15,7 +17,6 @@ type Project = Tables<"projects">;
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -30,7 +31,6 @@ const Dashboard = () => {
     if (user) {
       fetchProjects();
       
-      // 실시간 업데이트 구독
       const channel = supabase
         .channel('projects-changes')
         .on(
@@ -68,11 +68,7 @@ const Dashboard = () => {
       setProjects(data || []);
     } catch (error) {
       console.error("Error fetching projects:", error);
-      toast({
-        title: "오류 발생",
-        description: "프로젝트 목록을 불러오는 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+      toast.error("프로젝트 목록을 불러오는 중 오류가 발생했습니다.");
     } finally {
       setLoadingProjects(false);
     }
@@ -90,17 +86,10 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "삭제 완료",
-        description: "프로젝트가 성공적으로 삭제되었습니다.",
-      });
+      toast.success("프로젝트가 성공적으로 삭제되었습니다.");
     } catch (error) {
       console.error("Error deleting project:", error);
-      toast({
-        title: "오류 발생",
-        description: "프로젝트 삭제 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+      toast.error("프로젝트 삭제 중 오류가 발생했습니다.");
     } finally {
       setDeletingId(null);
     }
@@ -122,7 +111,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">로딩 중...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -132,186 +121,147 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       <Header />
       
-      <main className="container mx-auto px-4 py-8 md:py-12">
-        <div className="mb-8 md:mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">
-            환영합니다, {user.email?.split('@')[0]}님
-          </h1>
+      <main className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">안녕하세요! 👋</h1>
           <p className="text-muted-foreground">
-            MVP/PRD 문서를 업로드하고 교육 콘텐츠를 자동으로 생성해보세요.
+            AI 기반 교육 자료 생성 시스템에 오신 것을 환영합니다.
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-          <Card className="border-2 border-primary/20 hover:border-primary/40 transition-colors cursor-pointer group">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="p-3 rounded-lg bg-gradient-primary">
-                  <Plus className="h-6 w-6 text-primary-foreground" />
-                </div>
-                <Zap className="h-5 w-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <CardTitle className="mt-4">새 프로젝트 생성</CardTitle>
-              <CardDescription>
-                MVP/PRD 문서를 업로드하여 새로운 교육 콘텐츠를 생성합니다
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={() => navigate('/project/create')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                프로젝트 시작
-              </Button>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="projects" className="mb-8">
+          <TabsList>
+            <TabsTrigger value="projects">내 프로젝트</TabsTrigger>
+            <TabsTrigger value="stats">통계</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="projects" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card className="border-dashed cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate("/project/create")}>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-4">
+                    <Plus className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle>새 프로젝트 생성</CardTitle>
+                  <CardDescription>
+                    AI를 활용하여 새로운 교육 자료를 생성하세요
+                  </CardDescription>
+                </CardHeader>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <div className="p-3 rounded-lg bg-accent/10 w-fit">
-                <FileText className="h-6 w-6 text-accent" />
-              </div>
-              <CardTitle className="mt-4">6단계 자동 생성</CardTitle>
-              <CardDescription>
-                브리프부터 배포까지 36시간 안에 완료
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  콘텐츠 기획
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  시나리오 작성
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  이미지 생성
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/10 mb-4">
+                    <FileText className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <CardTitle>자동화된 생성</CardTitle>
+                  <CardDescription>
+                    문서를 업로드하면 자동으로 교육 자료가 생성됩니다
+                  </CardDescription>
+                </CardHeader>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <div className="p-3 rounded-lg bg-success/10 w-fit">
-                <Rocket className="h-6 w-6 text-success" />
-              </div>
-              <CardTitle className="mt-4">빠른 시작</CardTitle>
-              <CardDescription>
-                5분 내 설정으로 즉시 생성 가능
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">시간 단축</span>
-                  <span className="font-semibold text-primary">36시간</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">NPS 개선</span>
-                  <span className="font-semibold text-success">+15점</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-purple-500/10 mb-4">
+                    <Brain className="h-6 w-6 text-purple-500" />
+                  </div>
+                  <CardTitle>AI 기반 분석</CardTitle>
+                  <CardDescription>
+                    최신 AI 모델로 내용을 분석하고 최적화합니다
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>내 프로젝트 관리</CardTitle>
-            <CardDescription>
-              생성 중이거나 완료된 프로젝트를 확인하고 관리하세요
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingProjects ? (
-              <div className="text-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                <p className="text-muted-foreground mt-4">프로젝트를 불러오는 중...</p>
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">내 프로젝트</h2>
               </div>
-            ) : projects.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <p>아직 프로젝트가 없습니다</p>
-                <p className="text-sm mt-2">새 프로젝트를 생성하여 시작해보세요</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {projects.map((project) => (
-                  <Card 
-                    key={project.id} 
-                    className="hover:shadow-lg transition-all cursor-pointer group border-2 hover:border-primary/40"
-                    onClick={() => navigate(`/project/${project.id}`)}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                          <FileText className="h-5 w-5 text-primary" />
+              
+              {loadingProjects ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : projects.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">아직 프로젝트가 없습니다</h3>
+                      <p className="text-muted-foreground mb-4">
+                        첫 프로젝트를 생성하여 AI 기반 교육 자료 생성을 시작하세요
+                      </p>
+                      <Button onClick={() => navigate("/project/create")}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        새 프로젝트 생성
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {projects.map((project) => (
+                    <Card key={project.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="line-clamp-1">{project.title}</CardTitle>
+                            <CardDescription className="line-clamp-2 mt-2">
+                              {project.description || "설명 없음"}
+                            </CardDescription>
+                          </div>
+                          {getStatusBadge(project.status)}
                         </div>
-                        {getStatusBadge(project.status)}
-                      </div>
-                      <CardTitle className="text-lg line-clamp-1">{project.title}</CardTitle>
-                      {project.description && (
-                        <CardDescription className="line-clamp-2 min-h-[40px]">
-                          {project.description}
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">생성일</span>
-                          <span className="font-medium">{new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <Badge variant="outline">{project.ai_model}</Badge>
+                          {project.education_course && (
+                            <Badge variant="secondary">{project.education_course}</Badge>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">AI 모델</span>
-                          <span className="font-medium">{project.ai_model.toUpperCase()}</span>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(project.created_at).toLocaleDateString("ko-KR")}
+                          </span>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteProject(project.id)}
+                              disabled={deletingId === project.id}
+                            >
+                              {deletingId === project.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => navigate(`/project/${project.id}`)}
+                            >
+                              보기
+                            </Button>
+                          </div>
                         </div>
-                        <div className="pt-2 border-t flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/project/${project.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            상세보기
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteProject(project.id);
-                            }}
-                            disabled={deletingId === project.id}
-                          >
-                            {deletingId === project.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="stats">
+            <DashboardStats userId={user.id} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
