@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3, Save } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3, Save, Sparkles } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import { InfographicPreview } from "@/components/InfographicPreview";
 import jsPDF from 'jspdf';
@@ -39,6 +40,9 @@ const ProjectDetail = () => {
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [processingStage, setProcessingStage] = useState<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [selectedAiModel, setSelectedAiModel] = useState<string>("");
+  const [aiResults, setAiResults] = useState<any[]>([]);
+  const [retryingWithAi, setRetryingWithAi] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -47,10 +51,9 @@ const ProjectDetail = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user && id) {
+    if (user && id && selectedAiModel) {
       fetchProjectDetails();
       
-      // 실시간 업데이트 구독
       const channel = supabase
         .channel(`project-${id}-changes`)
         .on(
@@ -77,9 +80,20 @@ const ProjectDetail = () => {
             fetchProjectDetails();
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'project_ai_results',
+            filter: `project_id=eq.${id}`,
+          },
+          () => {
+            fetchProjectDetails();
+          }
+        )
         .subscribe();
 
-      // stages가 비어있으면 3초마다 재시도 (최대 10번)
       let retryCount = 0;
       const maxRetries = 10;
       const pollingInterval = setInterval(() => {
@@ -88,7 +102,6 @@ const ProjectDetail = () => {
           return;
         }
         
-        // stages가 여전히 비어있으면 다시 페칭
         if (stages.length === 0) {
           console.log('Retrying to fetch project details...');
           fetchProjectDetails();
@@ -103,7 +116,7 @@ const ProjectDetail = () => {
         clearInterval(pollingInterval);
       };
     }
-  }, [user, id, stages.length]);
+  }, [user, id, selectedAiModel]);
 
   const fetchProjectDetails = async () => {
     if (!user || !id) return;
@@ -111,7 +124,6 @@ const ProjectDetail = () => {
     try {
       setLoadingProject(true);
       
-      // 프로젝트 정보 가져오기
       const { data: projectData, error: projectError } = await supabase
         .from("projects")
         .select("*")
@@ -132,12 +144,24 @@ const ProjectDetail = () => {
       }
       
       setProject(projectData);
+      setSelectedAiModel(projectData.ai_model);
 
-      // 단계 정보 가져오기
+      // AI 결과 가져오기
+      const { data: aiResultsData, error: aiResultsError } = await supabase
+        .from("project_ai_results")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false });
+
+      if (aiResultsError) throw aiResultsError;
+      setAiResults(aiResultsData || []);
+
+      // 단계 정보 가져오기 (선택된 AI 모델의 stages)
       const { data: stagesData, error: stagesError } = await supabase
         .from("project_stages")
         .select("*")
         .eq("project_id", id)
+        .eq("ai_model", selectedAiModel || projectData.ai_model)
         .order("stage_order", { ascending: true });
 
       if (stagesError) throw stagesError;
@@ -502,6 +526,80 @@ const ProjectDetail = () => {
     }
   };
 
+  const handleAiModelChange = async (newModel: string) => {
+    setSelectedAiModel(newModel);
+    
+    // 선택한 AI 모델의 stages 불러오기
+    try {
+      const { data: stagesData, error } = await supabase
+        .from("project_stages")
+        .select("*")
+        .eq("project_id", id!)
+        .eq("ai_model", newModel)
+        .order("stage_order", { ascending: true });
+
+      if (error) throw error;
+      setStages(stagesData || []);
+    } catch (error) {
+      console.error("Error fetching stages for AI model:", error);
+    }
+  };
+
+  const handleRetryWithAi = async (aiModel: string) => {
+    if (!project || !user) return;
+
+    try {
+      setRetryingWithAi(true);
+      
+      // 선택한 AI 모델로 결과가 이미 있는지 확인
+      const existingResult = aiResults.find(r => r.ai_model === aiModel);
+      if (existingResult && existingResult.status === 'completed') {
+        toast({
+          title: "이미 생성된 결과가 있습니다",
+          description: "해당 AI 모델의 결과를 선택해서 확인하세요.",
+        });
+        setSelectedAiModel(aiModel);
+        handleAiModelChange(aiModel);
+        return;
+      }
+
+      // 프로젝트 상태 업데이트
+      await supabase
+        .from("projects")
+        .update({ status: "processing" })
+        .eq("id", project.id);
+
+      toast({
+        title: "AI 처리 시작",
+        description: `${aiModel.toUpperCase()} 모델로 콘텐츠를 생성하고 있습니다.`,
+      });
+
+      // Edge function 호출
+      const { error: funcError } = await supabase.functions.invoke("process-document", {
+        body: {
+          projectId: project.id,
+          documentContent: project.document_content,
+          aiModel: aiModel,
+          retryWithDifferentAi: true,
+        },
+      });
+
+      if (funcError) throw funcError;
+
+      // 선택한 AI 모델로 변경
+      setSelectedAiModel(aiModel);
+    } catch (error) {
+      console.error("Error retrying with AI:", error);
+      toast({
+        title: "오류 발생",
+        description: "AI 재시도 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingWithAi(false);
+    }
+  };
+
   if (loading || loadingProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -562,24 +660,81 @@ const ProjectDetail = () => {
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-6">
             <span>생성일: {new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
             <span>•</span>
-            <span>AI 모델: {project.ai_model.toUpperCase()}</span>
+            <div className="flex items-center gap-2">
+              <span>AI 모델:</span>
+              <Select value={selectedAiModel} onValueChange={handleAiModelChange}>
+                <SelectTrigger className="w-[140px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini">Gemini</SelectItem>
+                  <SelectItem value="claude">Claude</SelectItem>
+                  <SelectItem value="chatgpt">ChatGPT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {aiResults.length > 0 && (
+              <>
+                <span>•</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">생성된 AI 결과: </span>
+                  {aiResults.map((result) => (
+                    <Badge 
+                      key={result.id} 
+                      variant={result.ai_model === selectedAiModel ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => handleAiModelChange(result.ai_model)}
+                    >
+                      {result.ai_model.toUpperCase()}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* 진행률 표시 */}
-          <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">전체 진행률</span>
-                  <Badge variant="outline" className="text-xs">
-                    {completedStages} / {stages.length} 단계 완료
-                  </Badge>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">전체 진행률</span>
+                    <Badge variant="outline" className="text-xs">
+                      {completedStages} / {stages.length} 단계 완료
+                    </Badge>
+                  </div>
+                  <span className="text-2xl font-bold text-primary">{Math.round(progressPercentage)}%</span>
                 </div>
-                <span className="text-2xl font-bold text-primary">{Math.round(progressPercentage)}%</span>
-              </div>
-              <Progress value={progressPercentage} className="h-3" />
-            </CardContent>
-          </Card>
+                <Progress value={progressPercentage} className="h-3" />
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold mb-1">다른 AI 모델로 재시도</p>
+                    <p className="text-xs text-muted-foreground">다양한 AI의 결과를 비교해보세요</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {['gemini', 'claude', 'chatgpt'].filter(m => m !== selectedAiModel).map((model) => (
+                      <Button
+                        key={model}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRetryWithAi(model)}
+                        disabled={retryingWithAi}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        {model.toUpperCase()}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* 탭 네비게이션 */}
@@ -716,91 +871,99 @@ const ProjectDetail = () => {
           {/* 최종 결과물 탭 */}
           <TabsContent value="final">
             <Card>
-              {project.generated_content ? (
-                <>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-2xl">최종 생성 결과물</CardTitle>
-                        <CardDescription>
-                          모든 파이프라인 단계가 완료되어 생성된 최종 콘텐츠입니다
-                        </CardDescription>
+              {(() => {
+                const currentAiResult = aiResults.find(r => r.ai_model === selectedAiModel);
+                const currentContent = currentAiResult?.generated_content || project.generated_content;
+                
+                return currentContent ? (
+                  <>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <CardTitle className="text-2xl">최종 생성 결과물</CardTitle>
+                            <Badge variant="secondary">{selectedAiModel.toUpperCase()}</Badge>
+                          </div>
+                          <CardDescription>
+                            {selectedAiModel.toUpperCase()} 모델이 생성한 최종 콘텐츠입니다
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2 flex-wrap justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleShareLink}
+                            className="gap-2"
+                          >
+                            <Share2 className="h-4 w-4" />
+                            링크 공유
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCopyToClipboard}
+                            className="gap-2"
+                          >
+                            <Copy className="h-4 w-4" />
+                            복사
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadText}
+                            className="gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            TXT
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadMarkdown}
+                            className="gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            MD
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadPDF}
+                            className="gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            PDF
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadPPT}
+                            className="gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            PPT
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2 flex-wrap justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleShareLink}
-                          className="gap-2"
-                        >
-                          <Share2 className="h-4 w-4" />
-                          링크 공유
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCopyToClipboard}
-                          className="gap-2"
-                        >
-                          <Copy className="h-4 w-4" />
-                          복사
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDownloadText}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          TXT
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDownloadMarkdown}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          MD
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDownloadPDF}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          PDF
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDownloadPPT}
-                          className="gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          PPT
-                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-muted/50 p-6 rounded-lg border max-h-[600px] overflow-y-auto">
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <p className="whitespace-pre-wrap leading-relaxed">{currentContent}</p>
+                        </div>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted/50 p-6 rounded-lg border max-h-[600px] overflow-y-auto">
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        <p className="whitespace-pre-wrap leading-relaxed">{project.generated_content}</p>
-                      </div>
-                    </div>
+                    </CardContent>
+                  </>
+                ) : (
+                  <CardContent className="flex flex-col items-center justify-center py-16">
+                    <Clock className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                    <p className="text-lg font-semibold mb-2">최종 결과물이 아직 생성되지 않았습니다</p>
+                    <p className="text-sm text-muted-foreground text-center max-w-md">
+                      모든 파이프라인 단계가 완료되면 최종 결과물이 여기에 표시됩니다
+                    </p>
                   </CardContent>
-                </>
-              ) : (
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Clock className="h-16 w-16 text-muted-foreground/30 mb-4" />
-                  <p className="text-lg font-semibold mb-2">최종 결과물이 아직 생성되지 않았습니다</p>
-                  <p className="text-sm text-muted-foreground text-center max-w-md">
-                    모든 파이프라인 단계가 완료되면 최종 결과물이 여기에 표시됩니다
-                  </p>
-                </CardContent>
-              )}
+                );
+              })()}
             </Card>
           </TabsContent>
         </Tabs>
