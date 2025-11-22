@@ -1,20 +1,123 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, FileText, Rocket, Zap, CheckCircle2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, FileText, Rocket, Zap, CheckCircle2, Loader2, Trash2, Eye } from "lucide-react";
+import { Tables } from "@/integrations/supabase/types";
+
+type Project = Tables<"projects">;
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProjects();
+      
+      // 실시간 업데이트 구독
+      const channel = supabase
+        .channel('projects-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'projects',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchProjects();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]);
+
+  const fetchProjects = async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingProjects(true);
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setProjects(data || []);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      toast({
+        title: "오류 발생",
+        description: "프로젝트 목록을 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm("정말로 이 프로젝트를 삭제하시겠습니까?")) return;
+
+    try {
+      setDeletingId(projectId);
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectId);
+
+      if (error) throw error;
+
+      toast({
+        title: "삭제 완료",
+        description: "프로젝트가 성공적으로 삭제되었습니다.",
+      });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      toast({
+        title: "오류 발생",
+        description: "프로젝트 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-success text-success-foreground">완료</Badge>;
+      case "processing":
+        return <Badge className="bg-primary text-primary-foreground">처리 중</Badge>;
+      case "failed":
+        return <Badge variant="destructive">실패</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   if (loading) {
     return (
@@ -123,17 +226,80 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>진행 중인 프로젝트</CardTitle>
+            <CardTitle>프로젝트 목록</CardTitle>
             <CardDescription>
-              생성 중이거나 완료된 프로젝트를 확인하세요
+              생성 중이거나 완료된 프로젝트를 확인하고 관리하세요
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p>아직 프로젝트가 없습니다</p>
-              <p className="text-sm mt-2">새 프로젝트를 생성하여 시작해보세요</p>
-            </div>
+            {loadingProjects ? (
+              <div className="text-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                <p className="text-muted-foreground mt-4">프로젝트를 불러오는 중...</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                <p>아직 프로젝트가 없습니다</p>
+                <p className="text-sm mt-2">새 프로젝트를 생성하여 시작해보세요</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {projects.map((project) => (
+                  <Card key={project.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CardTitle className="text-lg">{project.title}</CardTitle>
+                            {getStatusBadge(project.status)}
+                          </div>
+                          {project.description && (
+                            <CardDescription className="line-clamp-2">
+                              {project.description}
+                            </CardDescription>
+                          )}
+                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                            <span>생성: {new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
+                            <span>AI 모델: {project.ai_model.toUpperCase()}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {project.status === "completed" && project.generated_content && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // 결과물 보기 기능 (향후 구현)
+                                toast({
+                                  title: "결과물",
+                                  description: project.generated_content?.substring(0, 200) + "...",
+                                });
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              결과 보기
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteProject(project.id)}
+                            disabled={deletingId === project.id}
+                          >
+                            {deletingId === project.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
