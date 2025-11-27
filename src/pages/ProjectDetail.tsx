@@ -11,9 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, XCircle, Loader2, RefreshCw, FileText, List, Download, Copy, Share2, BarChart3, Save, Sparkles, Rocket, MessageSquare } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import { InfographicPreview } from "@/components/InfographicPreview";
+import CourseDeployment from "@/components/CourseDeployment";
+import CourseFeedback from "@/components/CourseFeedback";
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
 
@@ -21,12 +23,12 @@ type Project = Tables<"projects">;
 type ProjectStage = Tables<"project_stages">;
 
 const STAGE_NAMES = [
-  "콘텐츠 기획",
-  "시나리오 작성",
-  "이미지 생성",
-  "음성/영상 제작",
-  "콘텐츠 조립",
-  "배포"
+  "커리큘럼 설계",
+  "수업안 작성",
+  "슬라이드 구성",
+  "실습 템플릿",
+  "평가/퀴즈",
+  "최종 검토"
 ];
 
 const ProjectDetail = () => {

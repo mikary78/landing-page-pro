@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      course_deployments: {
+        Row: {
+          created_at: string
+          deployment_status: string
+          deployment_url: string | null
+          id: string
+          project_id: string
+          published_at: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          deployment_status?: string
+          deployment_url?: string | null
+          id?: string
+          project_id: string
+          published_at?: string | null
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          deployment_status?: string
+          deployment_url?: string | null
+          id?: string
+          project_id?: string
+          published_at?: string | null
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_deployments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_feedbacks: {
+        Row: {
+          comment: string | null
+          created_at: string
+          deployment_id: string | null
+          feedback_type: string
+          id: string
+          project_id: string
+          rating: number | null
+          user_email: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          deployment_id?: string | null
+          feedback_type?: string
+          id?: string
+          project_id: string
+          rating?: number | null
+          user_email?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          deployment_id?: string | null
+          feedback_type?: string
+          id?: string
+          project_id?: string
+          rating?: number | null
+          user_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_feedbacks_deployment_id_fkey"
+            columns: ["deployment_id"]
+            isOneToOne: false
+            referencedRelation: "course_deployments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_feedbacks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
