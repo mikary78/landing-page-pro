@@ -386,13 +386,15 @@ serve(async (req) => {
     // --------------------------------------------------------
     // 환경변수 검증 (Supabase 기본)
     // --------------------------------------------------------
+    // Supabase reserves SUPABASE_* for platform use; allow FUNCTION_SUPABASE_* as the primary names,
+    // but still fall back to the old names if present.
     const supabaseUrl = requireEnv(
-      "SUPABASE_URL",
-      Deno.env.get("SUPABASE_URL")
+      "FUNCTION_SUPABASE_URL (or SUPABASE_URL)",
+      Deno.env.get("FUNCTION_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL")
     );
     const supabaseServiceKey = requireEnv(
-      "SUPABASE_SERVICE_ROLE_KEY",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+      "FUNCTION_SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY)",
+      Deno.env.get("FUNCTION_SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     );
 
     // --------------------------------------------------------

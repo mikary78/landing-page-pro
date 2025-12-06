@@ -1,5 +1,5 @@
 -- Create project_templates table
-CREATE TABLE public.project_templates (
+CREATE TABLE IF NOT EXISTS public.project_templates (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   template_name TEXT NOT NULL,
@@ -16,27 +16,46 @@ CREATE TABLE public.project_templates (
 ALTER TABLE public.project_templates ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for project_templates
-CREATE POLICY "Users can view their own templates"
-ON public.project_templates
-FOR SELECT
-USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_templates' AND policyname = 'Users can view their own templates'
+  ) THEN
+    CREATE POLICY "Users can view their own templates"
+    ON public.project_templates
+    FOR SELECT
+    USING (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can create their own templates"
-ON public.project_templates
-FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_templates' AND policyname = 'Users can create their own templates'
+  ) THEN
+    CREATE POLICY "Users can create their own templates"
+    ON public.project_templates
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can update their own templates"
-ON public.project_templates
-FOR UPDATE
-USING (auth.uid() = user_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_templates' AND policyname = 'Users can update their own templates'
+  ) THEN
+    CREATE POLICY "Users can update their own templates"
+    ON public.project_templates
+    FOR UPDATE
+    USING (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can delete their own templates"
-ON public.project_templates
-FOR DELETE
-USING (auth.uid() = user_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_templates' AND policyname = 'Users can delete their own templates'
+  ) THEN
+    CREATE POLICY "Users can delete their own templates"
+    ON public.project_templates
+    FOR DELETE
+    USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- Create trigger for automatic timestamp updates
+DROP TRIGGER IF EXISTS update_project_templates_updated_at ON public.project_templates;
 CREATE TRIGGER update_project_templates_updated_at
 BEFORE UPDATE ON public.project_templates
 FOR EACH ROW

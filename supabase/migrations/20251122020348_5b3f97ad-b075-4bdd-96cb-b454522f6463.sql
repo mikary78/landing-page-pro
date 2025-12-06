@@ -1,5 +1,5 @@
 -- Create project_stages table for pipeline management
-CREATE TABLE public.project_stages (
+CREATE TABLE IF NOT EXISTS public.project_stages (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   stage_name TEXT NOT NULL,
@@ -16,40 +16,55 @@ CREATE TABLE public.project_stages (
 ALTER TABLE public.project_stages ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
-CREATE POLICY "Users can view stages of their own projects"
-ON public.project_stages
-FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM public.projects
-    WHERE projects.id = project_stages.project_id
-    AND projects.user_id = auth.uid()
-  )
-);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_stages' AND policyname = 'Users can view stages of their own projects'
+  ) THEN
+    CREATE POLICY "Users can view stages of their own projects"
+    ON public.project_stages
+    FOR SELECT
+    USING (
+      EXISTS (
+        SELECT 1 FROM public.projects
+        WHERE projects.id = project_stages.project_id
+        AND projects.user_id = auth.uid()
+      )
+    );
+  END IF;
 
-CREATE POLICY "Users can insert stages for their own projects"
-ON public.project_stages
-FOR INSERT
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM public.projects
-    WHERE projects.id = project_stages.project_id
-    AND projects.user_id = auth.uid()
-  )
-);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_stages' AND policyname = 'Users can insert stages for their own projects'
+  ) THEN
+    CREATE POLICY "Users can insert stages for their own projects"
+    ON public.project_stages
+    FOR INSERT
+    WITH CHECK (
+      EXISTS (
+        SELECT 1 FROM public.projects
+        WHERE projects.id = project_stages.project_id
+        AND projects.user_id = auth.uid()
+      )
+    );
+  END IF;
 
-CREATE POLICY "Users can update stages of their own projects"
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'project_stages' AND policyname = 'Users can update stages of their own projects'
+  ) THEN
+    CREATE POLICY "Users can update stages of their own projects"
 ON public.project_stages
-FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM public.projects
-    WHERE projects.id = project_stages.project_id
-    AND projects.user_id = auth.uid()
-  )
-);
+    FOR UPDATE
+    USING (
+      EXISTS (
+        SELECT 1 FROM public.projects
+        WHERE projects.id = project_stages.project_id
+        AND projects.user_id = auth.uid()
+      )
+    );
+  END IF;
+END $$;
 
 -- Create trigger for updated_at
+DROP TRIGGER IF EXISTS update_project_stages_updated_at ON public.project_stages;
 CREATE TRIGGER update_project_stages_updated_at
 BEFORE UPDATE ON public.project_stages
 FOR EACH ROW

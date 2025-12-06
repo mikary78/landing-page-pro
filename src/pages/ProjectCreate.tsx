@@ -32,15 +32,39 @@ const ProjectCreate = () => {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase templates error details:", {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+          details: (error as any).details,
+        });
+
+        // If the project_templates table or user_id column is missing, fall back gracefully.
+        if ((error as any).code === '42703' || error.status === 404 || /does not exist/.test(String(error.message))) {
+          console.warn('Templates table missing or column absent; returning empty templates list');
+          setTemplates([]);
+          return;
+        }
+
+        throw error;
+      }
       setTemplates(data || []);
     } catch (error) {
       console.error("Error fetching templates:", error);
-      toast.error("템플릿 목록을 불러오는 중 오류가 발생했습니다.");
+      const message = typeof error === 'object' && error !== null && 'message' in error
+        ? String((error as { message?: string }).message ?? '')
+        : '';
+      if (message.toLowerCase().includes('jwt') || message.toLowerCase().includes('auth')) {
+        toast.error('인증 에러가 발생했습니다. 다시 로그인해주세요.');
+        navigate('/auth');
+        return;
+      }
+      // toast.error('템플릿을 불러오는 중 오류가 발생했습니다. 나중에 다시 시도해주세요.');
     } finally {
       setLoadingTemplates(false);
     }
-  }, [user]);
+  }, [user, navigate]);
 
   useEffect(() => {
     if (user) {
@@ -67,55 +91,109 @@ const ProjectCreate = () => {
   };
 
   const handleWizardComplete = async (formData: BriefData) => {
+    if (loading) return; // prevent duplicate submissions
+    const trimmedTitle = formData.title.trim();
+    if (!trimmedTitle) {
+      toast.error("제목을 입력해주세요.");
+      return;
+    }
     if (!user) {
-      toast.error("로그인이 필요합니다.");
+      toast.error("Login required.");
       navigate("/auth");
       return;
     }
 
     setLoading(true);
     try {
-      const { data: project, error: projectError } = await supabase
+      const sessionValue = Number(formData.educationSession);
+      const educationSession = Number.isFinite(sessionValue) ? sessionValue : undefined;
+
+      // Build insert payload dynamically - some columns might not exist on remote DB
+      const insertPayload: Record<string, any> = {
+        // Required columns (must always be present for RLS/NOT NULL)
+        title: trimmedTitle,
+        user_id: user.id,
+        document_content: formData.documentContent,
+        ai_model: formData.aiModel,
+        status: "processing",
+      };
+
+      // Optional columns
+      if (formData.description) insertPayload.description = formData.description;
+      if (formData.educationDuration) insertPayload.education_duration = formData.educationDuration;
+      if (formData.educationCourse) insertPayload.education_course = formData.educationCourse;
+      if (educationSession !== undefined) insertPayload.education_session = educationSession;
+
+      let project;
+      let projectError;
+      
+      // First attempt with all fields
+      const firstAttempt = await supabase
         .from("projects")
-        .insert({
+        .insert(insertPayload)
+        .select()
+        .single();
+      
+      projectError = firstAttempt.error;
+      project = firstAttempt.data;
+
+      // If column doesn't exist, retry with fewer columns
+      if (projectError && ((projectError.message?.includes('could not find') || (projectError as any).code === 'PGRST204'))) {
+        console.warn('Some columns missing on remote DB, retrying with essential columns only');
+        const minimalPayload: Record<string, any> = {
+          // Required columns (must remain to satisfy NOT NULL + RLS)
+          title: trimmedTitle,
           user_id: user.id,
-          title: formData.title,
-          description: formData.description,
           document_content: formData.documentContent,
           ai_model: formData.aiModel,
           status: "processing",
-          education_duration: formData.educationDuration || null,
-          education_course: formData.educationCourse || null,
-          education_session: formData.educationSession ? parseInt(formData.educationSession) : null,
-        })
-        .select()
-        .single();
+        };
+        
+        const retryAttempt = await supabase
+          .from("projects")
+          .insert(minimalPayload)
+          .select()
+          .single();
+        
+        projectError = retryAttempt.error;
+        project = retryAttempt.data;
+      }
 
-      if (projectError) throw projectError;
+      if (projectError || !project) {
+        console.error("Project insert failed:", projectError);
+        const errMsg = typeof projectError === 'object' && projectError !== null && 'message' in projectError
+          ? String((projectError as { message?: string }).message ?? '')
+          : '';
+        toast.error(`Project insert failed${errMsg ? `: ${errMsg}` : ''}`);
+        throw projectError ?? new Error("Project insert failed");
+      }
 
-      toast.success("AI가 콘텐츠를 생성하고 있습니다.");
+      // Start AI processing immediately and surface failures.
+      const { data: functionData, error: functionError } = await supabase.functions.invoke("process-document", {
+        body: {
+          projectId: project.id,
+          documentContent: formData.documentContent,
+          aiModel: formData.aiModel,
+        },
+      });
+
+      console.log("Function invoke result:", { functionData, functionError });
+
+      if (functionError) {
+        console.error("Function error details:", functionError);
+        await supabase.from("projects").update({ status: "failed" }).eq("id", project.id);
+        const errorMessage = typeof functionError === 'object' && functionError !== null && 'message' in functionError
+          ? (functionError as { message?: string }).message
+          : String(functionError);
+        toast.error(`AI processing failed: ${errorMessage}. Please reopen the project and retry.`);
+      } else {
+        toast.success("AI has started generating content.");
+      }
+
       navigate(`/project/${project.id}`);
-
-      setTimeout(async () => {
-        try {
-          const { error: functionError } = await supabase.functions.invoke("process-document", {
-            body: {
-              projectId: project.id,
-              documentContent: formData.documentContent,
-              aiModel: formData.aiModel,
-            },
-          });
-
-          if (functionError) {
-            console.error("AI processing error:", functionError);
-          }
-        } catch (err) {
-          console.error("Failed to start AI processing:", err);
-        }
-      }, 100);
     } catch (error) {
       console.error("Error creating project:", error);
-      toast.error("프로젝트 생성 중 오류가 발생했습니다.");
+      toast.error("Project creation failed.");
     } finally {
       setLoading(false);
     }
@@ -145,19 +223,20 @@ const ProjectCreate = () => {
             템플릿 선택으로 돌아가기
           </Button>
 
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg font-semibold">프로젝트 생성 중...</p>
-              <p className="text-sm text-muted-foreground">잠시만 기다려주세요</p>
-            </div>
-          ) : (
+          <div className="relative">
+            {loading && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-lg font-semibold">프로젝트 생성 중...</p>
+                <p className="text-sm text-muted-foreground">잠시만 기다려주세요</p>
+              </div>
+            )}
             <BriefWizard 
               onComplete={handleWizardComplete} 
               onCancel={handleCancel}
               initialData={getInitialData()}
             />
-          )}
+          </div>
         </main>
       </div>
     );

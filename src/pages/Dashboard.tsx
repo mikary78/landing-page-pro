@@ -38,11 +38,44 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error details:", {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+          details: (error as any).details,
+        });
+
+        // Fallback: if the error indicates the column doesn't exist (e.g., missing user_id),
+        // try an unfiltered query and filter client-side where possible.
+        if ((error as any).code === '42703' || /does not exist/.test(String(error.message))) {
+          console.warn('Column missing on remote DB, falling back to unfiltered projects fetch');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (fallbackError) {
+            console.error('Fallback fetch failed:', fallbackError);
+            throw fallbackError;
+          }
+
+          // If records include user_id, filter client-side; otherwise return all.
+          const filtered = (fallbackData || []).filter((p: any) => {
+            if ('user_id' in p) return p.user_id === user.id;
+            return true;
+          });
+          setProjects(filtered);
+          return;
+        }
+
+        throw error;
+      }
       setProjects(data || []);
     } catch (error) {
       console.error("Error fetching projects:", error);
-      toast.error("프로젝트 목록을 불러오는 중 오류가 발생했습니다.");
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      toast.error(`프로젝트 목록을 불러오는 중 오류가 발생했습니다: ${errorMsg}`);
     } finally {
       setLoadingProjects(false);
     }

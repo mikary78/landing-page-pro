@@ -9,6 +9,8 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  // Allow overriding redirect base via env; default to requested localhost:8080.
+  const APP_URL = import.meta.env.VITE_APP_URL ?? 'http://localhost:8080';
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -30,7 +32,7 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, displayName?: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      const redirectUrl = `${APP_URL}/`;
       
       const { error } = await supabase.auth.signUp({
         email,
@@ -88,7 +90,7 @@ export const useAuth = () => {
 
   const resetPassword = async (email: string) => {
     try {
-      const redirectTo = `${window.location.origin}/reset-password`;
+      const redirectTo = `${APP_URL}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       });

@@ -126,12 +126,31 @@ const ProjectDetail = () => {
     try {
       setLoadingProject(true);
       
-      const { data: projectData, error: projectError } = await supabase
+      let projectData;
+      let projectError;
+      
+      // 먼저 user_id 필터와 함께 시도
+      const result = await supabase
         .from("projects")
         .select("*")
         .eq("id", id)
         .eq("user_id", user.id)
         .maybeSingle();
+      
+      if (result.error) {
+        // user_id 컬럼이 없는 경우 fallback
+        console.warn('user_id 필터 쿼리 실패, ID만으로 재시도:', result.error);
+        const fallbackResult = await supabase
+          .from("projects")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+        projectData = fallbackResult.data;
+        projectError = fallbackResult.error;
+      } else {
+        projectData = result.data;
+        projectError = result.error;
+      }
 
       if (projectError) throw projectError;
       
