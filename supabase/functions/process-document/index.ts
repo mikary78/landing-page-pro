@@ -48,9 +48,15 @@ const REQUEST_TIMEOUT = 60000;
 // ============================================================
 // 환경변수 검증
 // ============================================================
+// 보안 개선: 환경변수명을 에러 메시지에 노출하지 않음
+// 참고: OWASP - Information Exposure Through an Error Message
+// https://owasp.org/www-community/Improper_Error_Handling
 const requireEnv = (name: string, value?: string): string => {
   if (!value) {
-    throw new Error(`Missing environment variable: ${name}`);
+    // 내부 로그에만 변수명 기록
+    console.error(`[Security] Missing required configuration: ${name}`);
+    // 외부로는 일반적인 메시지만 전달
+    throw new Error(`Missing required configuration. Please check server settings.`);
   }
   return value;
 };
@@ -409,12 +415,13 @@ serve(async (req) => {
       retryWithDifferentAi,
     } = await req.json();
 
-    console.log("Request received:", {
-      projectId,
-      regenerate,
-      stageId,
-      aiModel,
-      retryWithDifferentAi,
+    // 보안 개선: documentContent 제외 (민감정보 노출 방지)
+    console.log("[Request] Processing request:", {
+      projectId: projectId ? "provided" : "missing",
+      regenerate: !!regenerate,
+      stageId: stageId || "none",
+      aiModel: aiModel || "none",
+      retryWithDifferentAi: !!retryWithDifferentAi,
     });
 
     // --------------------------------------------------------
@@ -422,10 +429,11 @@ serve(async (req) => {
     // --------------------------------------------------------
     const provider = aiModel as AIProvider;
     if (!AI_CONFIG[provider]) {
+      // 내부 로그에만 상세 정보 기록
+      console.error(`[Error] Invalid AI provider requested: ${aiModel}`);
       return new Response(
         JSON.stringify({
-          error: `Unknown AI provider: ${aiModel}`,
-          available: Object.keys(AI_CONFIG),
+          error: "지원하지 않는 AI 모델입니다. 올바른 모델을 선택해주세요.",
         }),
         {
           status: 400,
@@ -440,7 +448,8 @@ serve(async (req) => {
       Deno.env.get(AI_CONFIG[provider].envKey)
     );
 
-    console.log(`Using AI provider: ${provider}, model: ${AI_CONFIG[provider].model}`);
+    // 보안 개선: API 모델명 제거 (민감정보 노출 방지)
+    console.log(`[Process] AI provider initialized: ${provider}`);
 
     // --------------------------------------------------------
     // Supabase 클라이언트 생성
@@ -460,9 +469,13 @@ serve(async (req) => {
         .single();
 
       if (stageError || !stage) {
-        console.error("Stage not found:", stageError);
+        // 내부 로그에만 상세 정보 기록
+        console.error("[Error] Stage not found:", stageError);
+        // 사용자에게는 일반적인 메시지만 전달
         return new Response(
-          JSON.stringify({ error: "Stage not found", details: stageError }),
+          JSON.stringify({ 
+            error: "요청한 단계를 찾을 수 없습니다. 프로젝트 ID를 확인해주세요."
+          }),
           {
             status: 404,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -486,13 +499,13 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (error) {
-        console.error("Regeneration failed:", error);
+        // 내부 로그에만 상세 에러 기록
+        console.error("[Error] Regeneration failed:", error);
         await updateStageStatus(supabase, stageId, "failed");
 
         return new Response(
           JSON.stringify({
-            error: "Regeneration failed",
-            details: error instanceof Error ? error.message : "Unknown error",
+            error: "콘텐츠 재생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
           }),
           {
             status: 500,
@@ -506,15 +519,15 @@ serve(async (req) => {
     // 기본 입력 검증
     // ========================================================
     if (!projectId || !documentContent || !aiModel) {
-      console.error("Missing required fields:", {
-        projectId,
+      // 내부 로그에만 상세 정보 기록
+      console.error("[Error] Missing required fields:", {
+        projectId: !!projectId,
         documentContent: !!documentContent,
-        aiModel,
+        aiModel: !!aiModel,
       });
       return new Response(
         JSON.stringify({
-          error: "Missing required fields",
-          required: ["projectId", "documentContent", "aiModel"],
+          error: "필수 입력값이 누락되었습니다. 프로젝트 정보를 확인해주세요.",
         }),
         {
           status: 400,
@@ -543,16 +556,19 @@ serve(async (req) => {
         });
 
       if (createError) {
-        console.error("Failed to create project:", createError);
+        // 내부 로그에만 상세 에러 기록
+        console.error("[Error] Failed to create project:", createError);
         return new Response(
-          JSON.stringify({ error: "Failed to create project", details: createError }),
+          JSON.stringify({ 
+            error: "프로젝트 생성에 실패했습니다. 잠시 후 다시 시도해주세요." 
+          }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      console.log(`Project ${projectId} created`);
+      console.log(`[Process] Project created: ${projectId}`);
     }
 
-    console.log(`Processing project: ${projectId} with AI: ${aiModel}`);
+    console.log(`[Process] Starting project processing: ${projectId}`);
 
     // ========================================================
     // AI 결과 상태 기록
@@ -722,11 +738,12 @@ serve(async (req) => {
     // ========================================================
     // 전역 에러 처리
     // ========================================================
-    console.error("Error in process-document function:", error);
+    // 내부 로그에만 상세 에러 기록
+    console.error("[Error] Unhandled error in process-document function:", error);
 
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
         timestamp: new Date().toISOString(),
       }),
       {
