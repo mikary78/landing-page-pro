@@ -11,16 +11,14 @@ export const useAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -53,10 +51,11 @@ export const useAuth = () => {
       });
       
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       toast({
         title: "회원가입 실패",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }
@@ -77,10 +76,51 @@ export const useAuth = () => {
       });
       
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       toast({
         title: "로그인 실패",
-        description: error.message,
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      const redirectTo = `${window.location.origin}/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) throw error;
+      toast({
+        title: "비밀번호 재설정 메일 발송",
+        description: "이메일을 확인하고 안내에 따라 재설정해 주세요.",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '비밀번호 재설정 메일 발송 중 오류가 발생했습니다.';
+      toast({
+        title: "메일 발송 실패",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      toast({
+        title: "비밀번호 변경 완료",
+        description: "새 비밀번호로 다시 로그인해 주세요.",
+      });
+      navigate('/auth');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '비밀번호 변경 중 오류가 발생했습니다.';
+      toast({
+        title: "비밀번호 변경 실패",
+        description: message,
         variant: "destructive",
       });
     }
@@ -96,10 +136,11 @@ export const useAuth = () => {
       });
 
       if (error) throw error;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       toast({
         title: "Google 로그인 실패",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }
@@ -115,10 +156,11 @@ export const useAuth = () => {
       });
       
       navigate('/auth');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       toast({
         title: "로그아웃 실패",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }
@@ -130,6 +172,8 @@ export const useAuth = () => {
     loading,
     signUp,
     signIn,
+    resetPassword,
+    updatePassword,
     signInWithGoogle,
     signOut,
   };

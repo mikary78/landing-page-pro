@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,27 @@ const Dashboard = () => {
     }
   }, [user, loading, navigate]);
 
+  const fetchProjects = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingProjects(true);
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setProjects(data || []);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      toast.error("프로젝트 목록을 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       fetchProjects();
@@ -51,31 +72,10 @@ const Dashboard = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [user]);
-
-  const fetchProjects = async () => {
-    if (!user) return;
-    
-    try {
-      setLoadingProjects(true);
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setProjects(data || []);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-      toast.error("프로젝트 목록을 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoadingProjects(false);
-    }
-  };
+  }, [fetchProjects, user]);
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("정말로 이 프로젝트를 삭제하시겠습니까?")) return;
+    if (!confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
 
     try {
       setDeletingId(projectId);
@@ -126,9 +126,9 @@ const Dashboard = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">안녕하세요! 👋</h1>
+          <h1 className="text-4xl font-bold mb-2">안녕하세요!</h1>
           <p className="text-muted-foreground">
-            AI 기반 교육 자료 생성 시스템에 오신 것을 환영합니다.
+            AI 기반 교육 자료 생성 서비스에 오신 것을 환영합니다.
           </p>
         </div>
 
@@ -147,7 +147,7 @@ const Dashboard = () => {
                   </div>
                   <CardTitle>새 프로젝트 생성</CardTitle>
                   <CardDescription>
-                    AI를 활용하여 새로운 교육 자료를 생성하세요
+                    AI로 교육 자료를 빠르게 만들어보세요.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -159,7 +159,7 @@ const Dashboard = () => {
                   </div>
                   <CardTitle>자동화된 생성</CardTitle>
                   <CardDescription>
-                    문서를 업로드하면 자동으로 교육 자료가 생성됩니다
+                    문서를 업로드하면 자동으로 교육 자료가 만들어집니다.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -171,7 +171,7 @@ const Dashboard = () => {
                   </div>
                   <CardTitle>AI 기반 분석</CardTitle>
                   <CardDescription>
-                    최신 AI 모델로 내용을 분석하고 최적화합니다
+                    최신 AI 모델로 분석하고 최적화합니다.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -193,7 +193,7 @@ const Dashboard = () => {
                       <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-semibold mb-2">아직 프로젝트가 없습니다</h3>
                       <p className="text-muted-foreground mb-4">
-                        첫 프로젝트를 생성하여 AI 기반 교육 자료 생성을 시작하세요
+                        새 프로젝트를 생성해 AI 기반 교육 자료를 만들어보세요.
                       </p>
                       <Button onClick={() => navigate("/project/create")}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -211,7 +211,7 @@ const Dashboard = () => {
                           <div className="flex-1">
                             <CardTitle className="line-clamp-1">{project.title}</CardTitle>
                             <CardDescription className="line-clamp-2 mt-2">
-                              {project.description || "설명 없음"}
+                              {project.description || "설명이 없습니다"}
                             </CardDescription>
                           </div>
                           {getStatusBadge(project.status)}

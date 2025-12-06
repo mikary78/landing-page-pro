@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+﻿
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ import CourseDeployment from "@/components/CourseDeployment";
 import CourseFeedback from "@/components/CourseFeedback";
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
+import { getCurrentContent } from "@/utils/contentSelector";
 
 type Project = Tables<"projects">;
 type ProjectStage = Tables<"project_stages">;
@@ -45,7 +47,7 @@ const ProjectDetail = () => {
   const [selectedAiModel, setSelectedAiModel] = useState<string>("");
   const [aiResults, setAiResults] = useState<any[]>([]);
   const [retryingWithAi, setRetryingWithAi] = useState(false);
-
+  const hasLoadedStagesRef = useRef(false);
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -103,8 +105,8 @@ const ProjectDetail = () => {
           clearInterval(pollingInterval);
           return;
         }
-        
-        if (stages.length === 0) {
+
+        if (!hasLoadedStagesRef.current) {
           console.log('Retrying to fetch project details...');
           fetchProjectDetails();
           retryCount++;
@@ -168,6 +170,9 @@ const ProjectDetail = () => {
 
       if (stagesError) throw stagesError;
       setStages(stagesData || []);
+      if ((stagesData || []).length > 0) {
+        hasLoadedStagesRef.current = true;
+      }
       
     } catch (error) {
       console.error("Error fetching project details:", error);
@@ -180,7 +185,6 @@ const ProjectDetail = () => {
       setLoadingProject(false);
     }
   };
-
   const handleStageRegenerate = async (stageId: string, stageOrder: number) => {
     if (!feedback[stageId]?.trim()) {
       toast({
@@ -261,10 +265,15 @@ const ProjectDetail = () => {
     }
   };
 
+  const currentContent = useMemo(
+    () => getCurrentContent(project, aiResults, selectedAiModel),
+    [project, aiResults, selectedAiModel]
+  );
+
   const handleDownloadMarkdown = () => {
-    if (!project?.generated_content) return;
+    if (!project || !currentContent) return;
     
-    const content = `# ${project.title}\n\n${project.description || ''}\n\n---\n\n${project.generated_content}`;
+    const content = `# ${project.title}\n\n${project.description || ''}\n\n---\n\n${currentContent}`;
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -282,9 +291,9 @@ const ProjectDetail = () => {
   };
 
   const handleDownloadText = () => {
-    if (!project?.generated_content) return;
+    if (!project || !currentContent) return;
     
-    const content = `${project.title}\n\n${project.description || ''}\n\n---\n\n${project.generated_content}`;
+    const content = `${project.title}\n\n${project.description || ''}\n\n---\n\n${currentContent}`;
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -300,12 +309,11 @@ const ProjectDetail = () => {
       description: "텍스트 파일이 다운로드되었습니다.",
     });
   };
-
   const handleCopyToClipboard = async () => {
-    if (!project?.generated_content) return;
+    if (!currentContent) return;
     
     try {
-      await navigator.clipboard.writeText(project.generated_content);
+      await navigator.clipboard.writeText(currentContent);
       toast({
         title: "복사 완료",
         description: "클립보드에 내용이 복사되었습니다.",
@@ -338,7 +346,7 @@ const ProjectDetail = () => {
   };
 
   const handleDownloadPDF = () => {
-    if (!project?.generated_content) return;
+    if (!project || !currentContent) return;
     
     try {
       const doc = new jsPDF();
@@ -370,7 +378,7 @@ const ProjectDetail = () => {
       
       // 콘텐츠
       doc.setFontSize(11);
-      const contentLines = doc.splitTextToSize(project.generated_content, maxWidth);
+      const contentLines = doc.splitTextToSize(currentContent, maxWidth);
       
       contentLines.forEach((line: string) => {
         if (yPos > pageHeight - margin) {
@@ -396,9 +404,8 @@ const ProjectDetail = () => {
       });
     }
   };
-
   const handleDownloadPPT = () => {
-    if (!project?.generated_content) return;
+    if (!project || !currentContent) return;
     
     try {
       const pptx = new PptxGenJS();
@@ -431,7 +438,7 @@ const ProjectDetail = () => {
       }
       
       // 콘텐츠를 단락으로 나누기
-      const paragraphs = project.generated_content.split('\n\n').filter(p => p.trim());
+      const paragraphs = currentContent.split('\n\n').filter(p => p.trim());
       
       // 각 단락을 슬라이드로
       paragraphs.forEach((paragraph, index) => {
@@ -527,7 +534,6 @@ const ProjectDetail = () => {
       setSavingTemplate(false);
     }
   };
-
   const handleAiModelChange = async (newModel: string) => {
     setSelectedAiModel(newModel);
     
@@ -601,7 +607,6 @@ const ProjectDetail = () => {
       setRetryingWithAi(false);
     }
   };
-
   if (loading || loadingProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -646,7 +651,6 @@ const ProjectDetail = () => {
             </Button>
           )}
         </div>
-
         {/* 프로젝트 헤더 */}
         <div className="mb-8">
           <div className="flex items-start justify-between mb-4">
@@ -736,7 +740,7 @@ const ProjectDetail = () => {
           
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-6">
             <span>생성일: {new Date(project.created_at).toLocaleDateString('ko-KR')}</span>
-            <span>•</span>
+            <span>?</span>
             <div className="flex items-center gap-2">
               <span>AI 모델:</span>
               <Select value={selectedAiModel} onValueChange={handleAiModelChange}>
@@ -752,7 +756,7 @@ const ProjectDetail = () => {
             </div>
             {aiResults.length > 0 && (
               <>
-                <span>•</span>
+                <span>?</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs">생성된 AI 결과: </span>
                   {aiResults.map((result) => (
@@ -769,7 +773,6 @@ const ProjectDetail = () => {
               </>
             )}
           </div>
-
           {/* 진행률 표시 - 완료된 프로젝트만 */}
           {project.status === 'completed' && (
             <div className="grid gap-4 md:grid-cols-2">
@@ -815,7 +818,6 @@ const ProjectDetail = () => {
             </div>
           )}
         </div>
-
         {/* 탭 네비게이션 */}
         <Tabs defaultValue="pipeline" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
@@ -934,7 +936,6 @@ const ProjectDetail = () => {
               </div>
             )}
           </TabsContent>
-
           {/* 인포그래픽 미리보기 탭 */}
           <TabsContent value="infographic">
             <InfographicPreview
@@ -943,106 +944,101 @@ const ProjectDetail = () => {
               aiModel={project.ai_model}
               stages={stages}
               createdAt={project.created_at}
-              generatedContent={project.generated_content || undefined}
+              generatedContent={currentContent || undefined}
             />
           </TabsContent>
 
           {/* 최종 결과물 탭 */}
           <TabsContent value="final">
             <Card>
-              {(() => {
-                const currentAiResult = aiResults.find(r => r.ai_model === selectedAiModel);
-                const currentContent = currentAiResult?.generated_content || project.generated_content;
-                
-                return currentContent ? (
-                  <>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <CardTitle className="text-2xl">최종 생성 결과물</CardTitle>
-                            <Badge variant="secondary">{selectedAiModel.toUpperCase()}</Badge>
-                          </div>
-                          <CardDescription>
-                            {selectedAiModel.toUpperCase()} 모델이 생성한 최종 콘텐츠입니다
-                          </CardDescription>
+              {currentContent ? (
+                <>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <CardTitle className="text-2xl">최종 생성 결과물</CardTitle>
+                          <Badge variant="secondary">{selectedAiModel.toUpperCase()}</Badge>
                         </div>
-                        <div className="flex gap-2 flex-wrap justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleShareLink}
-                            className="gap-2"
-                          >
-                            <Share2 className="h-4 w-4" />
-                            링크 공유
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleCopyToClipboard}
-                            className="gap-2"
-                          >
-                            <Copy className="h-4 w-4" />
-                            복사
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadText}
-                            className="gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            TXT
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadMarkdown}
-                            className="gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            MD
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadPDF}
-                            className="gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            PDF
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadPPT}
-                            className="gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            PPT
-                          </Button>
-                        </div>
+                        <CardDescription>
+                          {selectedAiModel.toUpperCase()} 모델이 생성한 최종 콘텐츠입니다
+                        </CardDescription>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-muted/50 p-6 rounded-lg border max-h-[600px] overflow-y-auto">
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
-                          <p className="whitespace-pre-wrap leading-relaxed">{currentContent}</p>
-                        </div>
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleShareLink}
+                          className="gap-2"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          링크 공유
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCopyToClipboard}
+                          className="gap-2"
+                        >
+                          <Copy className="h-4 w-4" />
+                          복사
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadText}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          TXT
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadMarkdown}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          MD
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadPDF}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadPPT}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          PPT
+                        </Button>
                       </div>
-                    </CardContent>
-                  </>
-                ) : (
-                  <CardContent className="flex flex-col items-center justify-center py-16">
-                    <Clock className="h-16 w-16 text-muted-foreground/30 mb-4" />
-                    <p className="text-lg font-semibold mb-2">최종 결과물이 아직 생성되지 않았습니다</p>
-                    <p className="text-sm text-muted-foreground text-center max-w-md">
-                      모든 파이프라인 단계가 완료되면 최종 결과물이 여기에 표시됩니다
-                    </p>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-muted/50 p-6 rounded-lg border max-h-[600px] overflow-y-auto">
+                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <p className="whitespace-pre-wrap leading-relaxed">{currentContent}</p>
+                      </div>
+                    </div>
                   </CardContent>
-                );
-              })()}
+                </>
+              ) : (
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Clock className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                  <p className="text-lg font-semibold mb-2">최종 결과물이 아직 생성되지 않았습니다</p>
+                  <p className="text-sm text-muted-foreground text-center max-w-md">
+                    모든 파이프라인 단계가 완료되면 최종 결과물이 여기에 표시됩니다
+                  </p>
+                </CardContent>
+              )}
             </Card>
           </TabsContent>
         </Tabs>

@@ -13,6 +13,7 @@ import Demo from "./pages/Demo";
 import CourseView from "./pages/CourseView";
 import CourseFeedbackPage from "./pages/CourseFeedbackPage";
 import NotFound from "./pages/NotFound";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
   const [queryClient] = useState(() => new QueryClient({
@@ -36,6 +37,7 @@ function App() {
             <Route path="/project/create" element={<ProjectCreate />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
             <Route path="/demo" element={<Demo />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/course/:id" element={<CourseView />} />
             <Route path="/course/:id/feedback" element={<CourseFeedbackPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

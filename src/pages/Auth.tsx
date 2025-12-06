@@ -34,6 +34,13 @@ const Auth = () => {
         onGoogleSignIn={signInWithGoogle}
         onToggleMode={toggleMode}
       />
+      {mode === 'signin' && (
+        <div className="absolute bottom-6 text-sm text-muted-foreground">
+          <a href="/reset-password" className="text-primary hover:underline">
+            비밀번호를 잊으셨나요?
+          </a>
+        </div>
+      )}
     </div>
   );
 };

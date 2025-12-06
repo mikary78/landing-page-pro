@@ -1,9 +1,13 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ============================================================
+// CORS 설정
+// ============================================================
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 // 교육 콘텐츠 생성 단계
@@ -131,6 +135,7 @@ const STAGE_PROMPTS: Record<string, string> = {
 };
 
 serve(async (req) => {
+  // CORS preflight 처리
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -143,34 +148,77 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing environment variables");
+    // --------------------------------------------------------
+    // 요청 파싱
+    // --------------------------------------------------------
+    const {
+      projectId,
+      documentContent,
+      aiModel,
+      stageId,
+      regenerate,
+      retryWithDifferentAi,
+    } = await req.json();
+
+    console.log("Request received:", {
+      projectId,
+      regenerate,
+      stageId,
+      aiModel,
+      retryWithDifferentAi,
+    });
+
+    // --------------------------------------------------------
+    // AI 제공자 검증 및 API 키 확인
+    // --------------------------------------------------------
+    const provider = aiModel as AIProvider;
+    if (!AI_CONFIG[provider]) {
+      return new Response(
+        JSON.stringify({
+          error: `Unknown AI provider: ${aiModel}`,
+          available: Object.keys(AI_CONFIG),
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // 선택된 AI의 API 키 가져오기
+    const aiApiKey = requireEnv(
+      AI_CONFIG[provider].envKey,
+      Deno.env.get(AI_CONFIG[provider].envKey)
+    );
 
-    const modelMap: Record<string, string> = {
-      gemini: "google/gemini-2.5-flash",
-      claude: "google/gemini-2.5-pro",
-      chatgpt: "openai/gpt-5-mini",
-    };
+    console.log(`Using AI provider: ${provider}, model: ${AI_CONFIG[provider].model}`);
 
-    const selectedModel = modelMap[aiModel] || "google/gemini-2.5-flash";
-    console.log(`Using model: ${selectedModel}`);
+    // --------------------------------------------------------
+    // Supabase 클라이언트 생성
+    // --------------------------------------------------------
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 재생성 요청인 경우
+    // ========================================================
+    // 재생성 요청 처리
+    // ========================================================
     if (regenerate && stageId) {
       console.log(`Regenerating stage: ${stageId}`);
-      
+
       const { data: stage, error: stageError } = await supabase
-        .from('project_stages')
-        .select('*')
-        .eq('id', stageId)
+        .from("project_stages")
+        .select("*")
+        .eq("id", stageId)
         .single();
 
       if (stageError || !stage) {
-        console.error('Stage not found:', stageError);
-        throw new Error('Stage not found');
+        console.error("Stage not found:", stageError);
+        return new Response(
+          JSON.stringify({ error: "Stage not found", details: stageError }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
       // 프로젝트 정보 가져오기
@@ -203,41 +251,67 @@ serve(async (req) => {
         }),
       });
 
-      if (!response.ok) {
-        console.error('AI API error:', response.status, await response.text());
-        await supabase
-          .from('project_stages')
-          .update({ status: 'failed' })
-          .eq('id', stageId);
-        throw new Error('AI content generation failed');
+        return new Response(
+          JSON.stringify({
+            error: "Regeneration failed",
+            details: error instanceof Error ? error.message : "Unknown error",
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
+    }
 
-      const data = await response.json();
-      const generatedContent = data.choices?.[0]?.message?.content;
-
-      await supabase
-        .from('project_stages')
-        .update({ 
-          content: generatedContent,
-          status: 'completed',
-        })
-        .eq('id', stageId);
-
-      console.log('Stage regeneration completed');
-
+    // ========================================================
+    // 기본 입력 검증
+    // ========================================================
+    if (!projectId || !documentContent || !aiModel) {
+      console.error("Missing required fields:", {
+        projectId,
+        documentContent: !!documentContent,
+        aiModel,
+      });
       return new Response(
-        JSON.stringify({ success: true, content: generatedContent }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: "Missing required fields",
+          required: ["projectId", "documentContent", "aiModel"],
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    // 새 프로젝트 처리
-    if (!projectId || !documentContent || !aiModel) {
-      console.error('Missing required fields:', { projectId, documentContent, aiModel });
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ========================================================
+    // 프로젝트 생성 또는 확인
+    // ========================================================
+    const { data: existingProject } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (!existingProject) {
+      const { error: createError } = await supabase
+        .from("projects")
+        .insert({
+          id: projectId,
+          status: "pending",
+          document_content: documentContent,
+          ai_model: aiModel,
+        });
+
+      if (createError) {
+        console.error("Failed to create project:", createError);
+        return new Response(
+          JSON.stringify({ error: "Failed to create project", details: createError }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      console.log(`Project ${projectId} created`);
     }
 
     console.log(`Processing project: ${projectId} with AI: ${aiModel}`);
@@ -251,41 +325,40 @@ serve(async (req) => {
 
     // 프로젝트 AI 결과 레코드 생성 또는 업데이트
     const { data: existingResult } = await supabase
-      .from('project_ai_results')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('ai_model', aiModel)
-      .single();
+      .from("project_ai_results")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("ai_model", aiModel)
+      .maybeSingle();
 
     if (!existingResult) {
-      await supabase
-        .from('project_ai_results')
-        .insert({
-          project_id: projectId,
-          ai_model: aiModel,
-          status: 'processing',
-        });
+      await supabase.from("project_ai_results").insert({
+        project_id: projectId,
+        ai_model: aiModel,
+        status: "processing",
+      });
     } else {
-      await supabase
-        .from('project_ai_results')
-        .update({ status: 'processing' })
-        .eq('project_id', projectId)
-        .eq('ai_model', aiModel);
+      await updateAiResultStatus(supabase, projectId, aiModel, "processing");
     }
 
+    // ========================================================
     // 프로젝트 상태 업데이트
-    await supabase
-      .from('projects')
-      .update({ status: 'processing' })
-      .eq('id', projectId);
+    // ========================================================
+    await updateProjectStatus(supabase, projectId, "processing");
 
-    // 해당 AI 모델의 기존 stages 삭제 (재시도인 경우)
+    // ========================================================
+    // 다른 AI 재시도 시 기존 스테이지 제거
+    // ========================================================
     if (retryWithDifferentAi) {
-      await supabase
-        .from('project_stages')
+      const { error: deleteError } = await supabase
+        .from("project_stages")
         .delete()
-        .eq('project_id', projectId)
-        .eq('ai_model', aiModel);
+        .eq("project_id", projectId)
+        .eq("ai_model", aiModel);
+
+      if (deleteError) {
+        console.error("Failed to delete existing stages:", deleteError);
+      }
     }
 
     // 이전 단계 콘텐츠 누적 저장
@@ -295,26 +368,27 @@ serve(async (req) => {
     for (let i = 0; i < STAGE_NAMES.length; i++) {
       const stageName = STAGE_NAMES[i];
       console.log(`Creating stage ${i + 1}: ${stageName} for AI: ${aiModel}`);
-      
+
+      // 스테이지 생성
       const { data: newStage, error: stageError } = await supabase
-        .from('project_stages')
+        .from("project_stages")
         .insert({
           project_id: projectId,
           stage_name: stageName,
           stage_order: i + 1,
-          status: 'processing',
+          status: "processing",
           ai_model: aiModel,
         })
         .select()
         .single();
 
-      if (stageError) {
-        console.error('Stage creation error:', stageError);
+      if (stageError || !newStage) {
+        console.error(`Stage creation error for ${stageName}:`, stageError);
+        failCount++;
         continue;
       }
 
-      console.log(`Stage created: ${newStage.id}`);
-
+      // 콘텐츠 생성 - 선택된 AI로 호출
       try {
         const stagePrompt = STAGE_PROMPTS[stageName] || '';
         
@@ -369,33 +443,49 @@ serve(async (req) => {
           .eq('id', newStage.id);
 
         console.log(`Stage ${stageName} completed successfully`);
+        successCount++;
       } catch (error) {
         console.error(`Error generating content for stage ${stageName}:`, error);
-        await supabase
-          .from('project_stages')
-          .update({ status: 'failed' })
-          .eq('id', newStage.id);
+        await updateStageStatus(supabase, newStage.id, "failed");
+        failCount++;
       }
     }
 
-    // 최종 결과물 생성
-    console.log('Generating final content for AI:', aiModel);
-    
+    // ========================================================
+    // 최종 결과물 합성
+    // ========================================================
+    console.log(
+      `Generating final content for AI: ${aiModel} (Success: ${successCount}, Failed: ${failCount})`
+    );
+
     const { data: completedStages, error: stagesError } = await supabase
-      .from('project_stages')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('ai_model', aiModel)
-      .order('stage_order', { ascending: true });
+      .from("project_stages")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("ai_model", aiModel)
+      .order("stage_order", { ascending: true });
 
     if (stagesError) {
-      console.error('Error fetching stages:', stagesError);
+      console.error("Error fetching stages:", stagesError);
     }
 
     const finalContent = completedStages
-      ?.map(stage => `## ${stage.stage_name}\n\n${stage.content || '생성 실패'}`)
-      .join('\n\n---\n\n');
+      ?.map(
+        (stage) => `## ${stage.stage_name}\n\n${stage.content || "생성 실패"}`
+      )
+      .join("\n\n---\n\n");
 
+    // ========================================================
+    // 최종 상태 결정
+    // ========================================================
+    const finalStatus =
+      failCount === 0
+        ? "completed"
+        : successCount === 0
+          ? "failed"
+          : "partial";
+
+    // ========================================================
     // AI 결과 업데이트
     await supabase
       .from('project_ai_results')
@@ -416,28 +506,51 @@ serve(async (req) => {
       })
       .eq('id', projectId);
 
-    console.log('Project processing completed');
+    // ========================================================
+    // 프로젝트 기본 generated_content 업데이트
+    // ========================================================
+    await updateProjectStatus(supabase, projectId, finalStatus, {
+      generated_content: finalContent,
+      ai_model: aiModel,
+    });
 
+    console.log(`Project processing completed with status: ${finalStatus}`);
+
+    // ========================================================
+    // 응답 반환
+    // ========================================================
     return new Response(
-      JSON.stringify({ 
-        success: true,
+      JSON.stringify({
+        success: finalStatus !== "failed",
+        status: finalStatus,
         content: finalContent,
+        stats: {
+          total: STAGE_NAMES.length,
+          success: successCount,
+          failed: failCount,
+        },
+        provider: provider,
+        model: AI_CONFIG[provider].model,
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-
   } catch (error) {
+    // ========================================================
+    // 전역 에러 처리
+    // ========================================================
     console.error("Error in process-document function:", error);
+
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error" 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   }

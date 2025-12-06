@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,13 +21,7 @@ const ProjectCreate = () => {
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchTemplates();
-    }
-  }, [user]);
-
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -46,7 +40,13 @@ const ProjectCreate = () => {
     } finally {
       setLoadingTemplates(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchTemplates();
+    }
+  }, [fetchTemplates, user]);
 
   const handleSelectTemplate = (template: ProjectTemplate | null) => {
     setSelectedTemplate(template);
@@ -180,7 +180,7 @@ const ProjectCreate = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">새 프로젝트 생성</h1>
           <p className="text-muted-foreground">
-            처음부터 시작하거나 저장된 템플릿을 선택하세요
+            처음부터 시작하거나 저장된 템플릿을 선택하세요.
           </p>
         </div>
 
@@ -198,9 +198,9 @@ const ProjectCreate = () => {
                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-4">
                   <Plus className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>처음부터 시작</CardTitle>
+                <CardTitle>처음부터 생성</CardTitle>
                 <CardDescription>
-                  새로운 프로젝트를 처음부터 만듭니다
+                  새 프로젝트를 처음부터 만듭니다.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -217,7 +217,7 @@ const ProjectCreate = () => {
                   </div>
                   <CardTitle className="line-clamp-1">{template.template_name}</CardTitle>
                   <CardDescription className="line-clamp-2">
-                    {template.description || "설명 없음"}
+                    {template.description || "설명이 없습니다"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -226,7 +226,7 @@ const ProjectCreate = () => {
                       <span>모델: {template.ai_model}</span>
                     )}
                     {template.education_course && (
-                      <span>• {template.education_course}</span>
+                      <span>코스: {template.education_course}</span>
                     )}
                   </div>
                 </CardContent>
