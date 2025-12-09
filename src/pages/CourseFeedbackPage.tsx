@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,7 @@ const CourseFeedbackPage = () => {
     comment: "",
   });
 
-  useEffect(() => {
-    if (id) {
-      fetchProjectTitle();
-    }
-  }, [id]);
-
-  const fetchProjectTitle = async () => {
+  const fetchProjectTitle = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("projects")
@@ -43,7 +37,13 @@ const CourseFeedbackPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchProjectTitle();
+    }
+  }, [id, fetchProjectTitle]);
 
   const handleSubmit = async () => {
     if (formData.rating === 0) {

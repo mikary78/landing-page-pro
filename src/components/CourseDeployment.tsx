@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,11 +37,7 @@ const CourseDeployment = ({ projectId, userId, projectTitle }: CourseDeploymentP
   const [deploying, setDeploying] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    fetchDeployment();
-  }, [projectId]);
-
-  const fetchDeployment = async () => {
+  const fetchDeployment = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("course_deployments")
@@ -58,7 +54,11 @@ const CourseDeployment = ({ projectId, userId, projectTitle }: CourseDeploymentP
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchDeployment();
+  }, [fetchDeployment]);
 
   const handleDeploy = async () => {
     setDeploying(true);

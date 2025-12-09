@@ -141,13 +141,6 @@ serve(async (req) => {
   }
 
   try {
-    const { projectId, documentContent, aiModel, stageId, stageOrder, regenerate, retryWithDifferentAi, educationDuration, educationCourse, educationSession } = await req.json();
-    console.log('Request received:', { projectId, regenerate, stageId, aiModel, retryWithDifferentAi });
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
     // --------------------------------------------------------
     // 요청 파싱
     // --------------------------------------------------------
@@ -158,6 +151,9 @@ serve(async (req) => {
       stageId,
       regenerate,
       retryWithDifferentAi,
+      educationDuration,
+      educationCourse,
+      educationSession
     } = await req.json();
 
     console.log("Request received:", {
@@ -169,34 +165,20 @@ serve(async (req) => {
     });
 
     // --------------------------------------------------------
-    // AI 제공자 검증 및 API 키 확인
+    // 환경 변수 확인
     // --------------------------------------------------------
-    const provider = aiModel as AIProvider;
-    if (!AI_CONFIG[provider]) {
-      return new Response(
-        JSON.stringify({
-          error: `Unknown AI provider: ${aiModel}`,
-          available: Object.keys(AI_CONFIG),
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing required environment variables");
     }
-
-    // 선택된 AI의 API 키 가져오기
-    const aiApiKey = requireEnv(
-      AI_CONFIG[provider].envKey,
-      Deno.env.get(AI_CONFIG[provider].envKey)
-    );
-
-    console.log(`Using AI provider: ${provider}, model: ${AI_CONFIG[provider].model}`);
 
     // --------------------------------------------------------
     // Supabase 클라이언트 생성
     // --------------------------------------------------------
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // ========================================================
     // 재생성 요청 처리
@@ -228,29 +210,58 @@ serve(async (req) => {
         .eq('id', stage.project_id)
         .single();
 
-      const stagePrompt = STAGE_PROMPTS[stage.stage_name] || '';
-      
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            {
-              role: 'system',
-              content: stagePrompt
-            },
-            {
-              role: 'user',
-              content: `브리프: ${project?.document_content || ''}\n\n기존 콘텐츠:\n${stage.content}\n\n사용자 피드백: ${stage.feedback}\n\n위 피드백을 반영하여 "${stage.stage_name}" 단계의 콘텐츠를 개선해주세요.`
-            }
-          ],
-        }),
-      });
+      try {
+        const stagePrompt = STAGE_PROMPTS[stage.stage_name] || '';
+        
+        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: aiModel,
+            messages: [
+              {
+                role: 'system',
+                content: stagePrompt
+              },
+              {
+                role: 'user',
+                content: `브리프: ${project?.document_content || ''}\n\n기존 콘텐츠:\n${stage.content}\n\n사용자 피드백: ${stage.feedback}\n\n위 피드백을 반영하여 "${stage.stage_name}" 단계의 콘텐츠를 개선해주세요.`
+              }
+            ],
+          }),
+        });
 
+        if (!response.ok) {
+          throw new Error(`AI API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const regeneratedContent = data.choices?.[0]?.message?.content;
+
+        // 재생성된 콘텐츠 업데이트
+        await supabase
+          .from('project_stages')
+          .update({ 
+            content: regeneratedContent,
+            status: 'completed',
+          })
+          .eq('id', stageId);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            content: regeneratedContent,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Regeneration error:", error);
         return new Response(
           JSON.stringify({
             error: "Regeneration failed",
@@ -338,13 +349,20 @@ serve(async (req) => {
         status: "processing",
       });
     } else {
-      await updateAiResultStatus(supabase, projectId, aiModel, "processing");
+      await supabase
+        .from("project_ai_results")
+        .update({ status: "processing" })
+        .eq("project_id", projectId)
+        .eq("ai_model", aiModel);
     }
 
     // ========================================================
     // 프로젝트 상태 업데이트
     // ========================================================
-    await updateProjectStatus(supabase, projectId, "processing");
+    await supabase
+      .from("projects")
+      .update({ status: "processing" })
+      .eq("id", projectId);
 
     // ========================================================
     // 다른 AI 재시도 시 기존 스테이지 제거
@@ -363,6 +381,8 @@ serve(async (req) => {
 
     // 이전 단계 콘텐츠 누적 저장
     let previousContents: string[] = [];
+    let successCount = 0;
+    let failCount = 0;
 
     // 6단계 생성
     for (let i = 0; i < STAGE_NAMES.length; i++) {
@@ -404,7 +424,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: selectedModel,
+            model: aiModel,
             messages: [
               {
                 role: 'system',
@@ -446,7 +466,10 @@ serve(async (req) => {
         successCount++;
       } catch (error) {
         console.error(`Error generating content for stage ${stageName}:`, error);
-        await updateStageStatus(supabase, newStage.id, "failed");
+        await supabase
+          .from('project_stages')
+          .update({ status: 'failed' })
+          .eq('id', newStage.id);
         failCount++;
       }
     }
@@ -506,14 +529,6 @@ serve(async (req) => {
       })
       .eq('id', projectId);
 
-    // ========================================================
-    // 프로젝트 기본 generated_content 업데이트
-    // ========================================================
-    await updateProjectStatus(supabase, projectId, finalStatus, {
-      generated_content: finalContent,
-      ai_model: aiModel,
-    });
-
     console.log(`Project processing completed with status: ${finalStatus}`);
 
     // ========================================================
@@ -529,8 +544,7 @@ serve(async (req) => {
           success: successCount,
           failed: failCount,
         },
-        provider: provider,
-        model: AI_CONFIG[provider].model,
+        model: aiModel,
       }),
       {
         status: 200,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,11 +52,7 @@ const CourseFeedback = ({ projectId, isOwner = true }: CourseFeedbackProps) => {
     comment: "",
   });
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [projectId]);
-
-  const fetchFeedbacks = async () => {
+  const fetchFeedbacks = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("course_feedbacks")
@@ -73,7 +69,11 @@ const CourseFeedback = ({ projectId, isOwner = true }: CourseFeedbackProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [fetchFeedbacks]);
 
   const calculateStats = (data: Feedback[]) => {
     if (data.length === 0) {

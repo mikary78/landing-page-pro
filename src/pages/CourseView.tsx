@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -42,13 +42,7 @@ const CourseView = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("content");
 
-  useEffect(() => {
-    if (id) {
-      fetchCourseData();
-    }
-  }, [id]);
-
-  const fetchCourseData = async () => {
+  const fetchCourseData = useCallback(async () => {
     try {
       // 프로젝트 정보 가져오기 (공개 접근)
       const { data: projectData, error: projectError } = await supabase
@@ -75,7 +69,13 @@ const CourseView = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchCourseData();
+    }
+  }, [id, fetchCourseData]);
 
   if (loading) {
     return (
