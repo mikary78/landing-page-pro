@@ -25,6 +25,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Supabase 클라이언트를 모킹 버전으로 대체 (webidl-conversions 에러 방지)
+      '@/integrations/supabase/client': path.resolve(__dirname, './src/test/mocks/supabase-client.ts'),
       // webidl-conversions와 whatwg-url 모듈을 모킹 파일로 대체
       'webidl-conversions': path.resolve(__dirname, './src/test/mocks/webidl-conversions.js'),
       'whatwg-url': path.resolve(__dirname, './src/test/mocks/whatwg-url.js'),
@@ -40,8 +42,8 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
-  // Supabase 관련 모듈 처리
+  // Supabase 관련 모듈 처리 - 테스트 환경에서 제외
   optimizeDeps: {
-    include: ['@supabase/supabase-js'],
+    exclude: ['@supabase/supabase-js', 'webidl-conversions', 'whatwg-url'],
   },
 });

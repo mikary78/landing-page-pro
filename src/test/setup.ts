@@ -76,24 +76,5 @@ if (typeof globalThis !== 'undefined') {
   }
 }
 
-// Supabase 클라이언트 모킹 (필요한 경우)
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-          maybeSingle: vi.fn(),
-        })),
-      })),
-      insert: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-    })),
-    auth: {
-      getUser: vi.fn(),
-      signInWithPassword: vi.fn(),
-      signOut: vi.fn(),
-    },
-  },
-}));
+// Supabase 클라이언트는 vitest.config.ts의 resolve.alias를 통해 모킹됨
+// 여기서는 추가 모킹이 필요 없음
