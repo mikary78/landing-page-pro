@@ -16,16 +16,18 @@ export default defineConfig({
       '**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       '**/__tests__/**/*.{js,ts,jsx,tsx}',
     ],
-    // Unhandled Errors를 경고로 처리 (에러로 처리하지 않음)
-    // webidl-conversions는 Supabase 의존성 문제로 발생하는 것으로, 테스트 실행에는 영향 없음
-    onUnhandledRejection: () => {
-      // 모든 unhandled rejection을 무시 (webidl-conversions 에러 포함)
-      return false;
-    },
+    // webidl-conversions 에러를 무시하도록 설정
+    // 이 에러는 Supabase 의존성 문제로 발생하며, 테스트 실행에는 영향 없음
+    bail: 0, // 모든 테스트를 실행하도록 설정
+    // 에러를 무시하도록 설정 (실제로는 작동하지 않을 수 있음)
+    // 대신 setup 파일에서 처리
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // webidl-conversions와 whatwg-url 모듈을 모킹 파일로 대체
+      'webidl-conversions': path.resolve(__dirname, './src/test/mocks/webidl-conversions.js'),
+      'whatwg-url': path.resolve(__dirname, './src/test/mocks/whatwg-url.js'),
     },
   },
   // 서버 설정 - webidl-conversions 모듈 제외
