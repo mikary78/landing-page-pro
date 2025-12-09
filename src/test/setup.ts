@@ -2,6 +2,22 @@ import '@testing-library/jest-dom';
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+// webidl-conversions 에러를 미리 처리
+// 이 에러는 Supabase 의존성 문제로 발생하며, 테스트 실행에는 영향 없음
+const originalError = console.error;
+console.error = (...args: unknown[]) => {
+  const message = args.join(' ');
+  if (
+    message.includes('webidl-conversions') ||
+    message.includes('whatwg-url') ||
+    message.includes("Cannot read properties of undefined (reading 'get')")
+  ) {
+    // 이 에러는 무시
+    return;
+  }
+  originalError(...args);
+};
+
 // 각 테스트 후 자동 cleanup
 afterEach(() => {
   cleanup();

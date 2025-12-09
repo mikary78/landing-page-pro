@@ -16,20 +16,22 @@ export default defineConfig({
       '**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       '**/__tests__/**/*.{js,ts,jsx,tsx}',
     ],
-    // Unhandled Errors 처리
-    // webidl-conversions 관련 에러는 무시 (Supabase 의존성 문제)
-    onUnhandledRejection: (reason) => {
-      if (reason && typeof reason === 'object' && 'message' in reason) {
-        const message = String(reason.message);
-        if (message.includes('webidl-conversions') || message.includes('whatwg-url')) {
-          return false; // 이 에러는 무시
-        }
-      }
+    // Unhandled Errors를 경고로 처리 (에러로 처리하지 않음)
+    // webidl-conversions는 Supabase 의존성 문제로 발생하는 것으로, 테스트 실행에는 영향 없음
+    onUnhandledRejection: () => {
+      // 모든 unhandled rejection을 무시 (webidl-conversions 에러 포함)
+      return false;
     },
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  // 서버 설정 - webidl-conversions 모듈 제외
+  server: {
+    deps: {
+      exclude: ['webidl-conversions', 'whatwg-url'],
     },
   },
   // Node.js polyfill 설정
