@@ -50,7 +50,9 @@ if (typeof process !== 'undefined' && process.on) {
     // 다른 에러는 원래 핸들러로 전달
     originalUncaughtException.forEach((handler) => {
       try {
-        handler(error);
+        if (typeof handler === 'function') {
+          (handler as (error: Error, origin: string) => void)(error, 'uncaughtException');
+        }
       } catch {
         // 핸들러 에러는 무시
       }
@@ -66,13 +68,11 @@ afterEach(() => {
 // Node.js 환경 변수 설정 (webidl-conversions 모듈을 위한)
 // jsdom 환경에서 Node.js 전역 변수 제공
 if (typeof globalThis !== 'undefined') {
-  // @ts-expect-error - globalThis에 global 속성을 추가하여 Node.js polyfill 제공
-  globalThis.global = globalThis;
+  (globalThis as Record<string, unknown>).global = globalThis;
   
   // process 객체가 없는 경우 빈 객체로 설정
   if (typeof process === 'undefined') {
-    // @ts-expect-error - process 객체를 전역에 추가
-    globalThis.process = { env: {} } as NodeJS.Process;
+    (globalThis as Record<string, unknown>).process = { env: {} };
   }
 }
 
