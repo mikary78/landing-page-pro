@@ -3,13 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  // 환경 변수 누락 시 명시적으로 알림
   const missing = [
     !SUPABASE_URL && 'VITE_SUPABASE_URL',
-    !SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY',
+    !SUPABASE_ANON_KEY && 'VITE_SUPABASE_PUBLISHABLE_KEY',
   ].filter(Boolean).join(', ');
   throw new Error(`Supabase 설정 누락: ${missing}. .env를 확인하세요.`);
 }
