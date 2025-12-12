@@ -31,10 +31,25 @@ export const supabase = {
   })),
   auth: {
     getUser: vi.fn(),
+    signUp: vi.fn(),
     signInWithPassword: vi.fn(),
+    signInWithOAuth: vi.fn(),
+    resetPasswordForEmail: vi.fn(),
+    updateUser: vi.fn(),
     signOut: vi.fn(),
+    getSession: vi.fn(),
     onAuthStateChange: vi.fn(),
   },
+  functions: {
+    invoke: vi.fn(),
+  },
+  channel: vi.fn(() => ({
+    on: vi.fn(() => ({
+      subscribe: vi.fn(),
+    })),
+    subscribe: vi.fn(),
+  })),
+  removeChannel: vi.fn(),
   storage: {
     from: vi.fn(),
   },
