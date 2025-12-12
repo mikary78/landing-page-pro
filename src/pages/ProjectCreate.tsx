@@ -94,25 +94,30 @@ const ProjectCreate = () => {
       if (projectError) throw projectError;
 
       toast.success("AI가 콘텐츠를 생성하고 있습니다.");
-      navigate(`/project/${project.id}`);
+      
+      // Edge Function 호출 (프로젝트 생성 직후)
+      try {
+        const { error: functionError, data: functionData } = await supabase.functions.invoke("process-document", {
+          body: {
+            projectId: project.id,
+            documentContent: formData.documentContent,
+            aiModel: formData.aiModel,
+          },
+        });
 
-      setTimeout(async () => {
-        try {
-          const { error: functionError } = await supabase.functions.invoke("process-document", {
-            body: {
-              projectId: project.id,
-              documentContent: formData.documentContent,
-              aiModel: formData.aiModel,
-            },
-          });
-
-          if (functionError) {
-            console.error("AI processing error:", functionError);
-          }
-        } catch (err) {
-          console.error("Failed to start AI processing:", err);
+        if (functionError) {
+          console.error("AI processing error:", functionError);
+          toast.error("AI 콘텐츠 생성 시작 중 오류가 발생했습니다. 프로젝트 상세 페이지에서 다시 시도해주세요.");
+        } else {
+          console.log("AI processing started:", functionData);
         }
-      }, 100);
+      } catch (err) {
+        console.error("Failed to start AI processing:", err);
+        toast.error("AI 콘텐츠 생성 시작 중 오류가 발생했습니다. 프로젝트 상세 페이지에서 다시 시도해주세요.");
+      }
+
+      // 프로젝트 상세 페이지로 이동
+      navigate(`/project/${project.id}`);
     } catch (error) {
       console.error("Error creating project:", error);
       toast.error("프로젝트 생성 중 오류가 발생했습니다.");
