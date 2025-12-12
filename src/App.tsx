@@ -12,6 +12,9 @@ import ProjectDetail from "./pages/ProjectDetail";
 import Demo from "./pages/Demo";
 import CourseView from "./pages/CourseView";
 import CourseFeedbackPage from "./pages/CourseFeedbackPage";
+import CoursesPage from "./pages/CoursesPage";
+import CourseCreatePage from "./pages/CourseCreatePage";
+import CourseBuilderPage from "./pages/CourseBuilderPage";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 
@@ -40,6 +43,9 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/course/:id" element={<CourseView />} />
             <Route path="/course/:id/feedback" element={<CourseFeedbackPage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/courses/create" element={<CourseCreatePage />} />
+            <Route path="/courses/:id/builder" element={<CourseBuilderPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

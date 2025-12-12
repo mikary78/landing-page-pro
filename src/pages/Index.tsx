@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import Features from "@/components/Features";
+import ProjectVsCourse from "@/components/ProjectVsCourse";
 import Pipeline from "@/components/Pipeline";
 import Personas from "@/components/Personas";
 import Metrics from "@/components/Metrics";
@@ -16,6 +17,7 @@ const Index = () => {
         <div id="features">
           <Features />
         </div>
+        <ProjectVsCourse />
         <div id="pipeline">
           <Pipeline />
         </div>

@@ -8,17 +8,20 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Header from "@/components/Header";
 import { DashboardStats } from "@/components/DashboardStats";
-import { Plus, Loader2, Trash2, FileText, Zap, Brain } from "lucide-react";
+import { Plus, Loader2, Trash2, FileText, Zap, Brain, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
 
 type Project = Tables<"projects">;
+type Course = Tables<"courses">;
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,11 +51,33 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  const fetchCourses = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingCourses(true);
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setCourses(data || []);
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+      toast.error("코스 목록을 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingCourses(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       fetchProjects();
+      fetchCourses();
       
-      const channel = supabase
+      const projectsChannel = supabase
         .channel('projects-changes')
         .on(
           'postgres_changes',
@@ -68,11 +93,28 @@ const Dashboard = () => {
         )
         .subscribe();
 
+      const coursesChannel = supabase
+        .channel('courses-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'courses',
+            filter: `owner_id=eq.${user.id}`,
+          },
+          () => {
+            fetchCourses();
+          }
+        )
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(projectsChannel);
+        supabase.removeChannel(coursesChannel);
       };
     }
-  }, [fetchProjects, user]);
+  }, [fetchProjects, fetchCourses, user]);
 
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
@@ -135,6 +177,7 @@ const Dashboard = () => {
         <Tabs defaultValue="projects" className="mb-8">
           <TabsList>
             <TabsTrigger value="projects">내 프로젝트</TabsTrigger>
+            <TabsTrigger value="courses">내 코스</TabsTrigger>
             <TabsTrigger value="stats">통계</TabsTrigger>
           </TabsList>
           
@@ -147,7 +190,7 @@ const Dashboard = () => {
                   </div>
                   <CardTitle>새 프로젝트 생성</CardTitle>
                   <CardDescription>
-                    AI로 교육 자료를 빠르게 만들어보세요.
+                    AI로 단일 교육 자료를 빠르게 만들어보세요.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -249,6 +292,127 @@ const Dashboard = () => {
                               보기
                             </Button>
                           </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="courses" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card className="border-dashed cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate("/courses/create")}>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/10 mb-4">
+                    <Plus className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <CardTitle>새 코스 생성</CardTitle>
+                  <CardDescription>
+                    여러 레슨으로 구성된 교육 과정을 만들어보세요.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-500/10 mb-4">
+                    <BookOpen className="h-6 w-6 text-green-500" />
+                  </div>
+                  <CardTitle>체계적인 커리큘럼</CardTitle>
+                  <CardDescription>
+                    모듈과 레슨으로 구성된 체계적인 교육 과정을 설계하세요.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-orange-500/10 mb-4">
+                    <Brain className="h-6 w-6 text-orange-500" />
+                  </div>
+                  <CardTitle>레슨별 AI 생성</CardTitle>
+                  <CardDescription>
+                    각 레슨마다 AI로 콘텐츠를 자동 생성할 수 있습니다.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">내 코스</h2>
+              </div>
+              
+              {loadingCourses ? (
+                <div className="flex justify-center items-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : courses.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">아직 코스가 없습니다</h3>
+                      <p className="text-muted-foreground mb-4">
+                        새 코스를 생성해 체계적인 교육 과정을 만들어보세요.
+                      </p>
+                      <Button onClick={() => navigate("/courses/create")}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        새 코스 생성
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {courses.map((course) => (
+                    <Card 
+                      key={course.id} 
+                      className="hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/courses/${course.id}/builder`)}
+                    >
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="line-clamp-1">{course.title}</CardTitle>
+                            <CardDescription className="line-clamp-2 mt-2">
+                              {course.description || "설명이 없습니다"}
+                            </CardDescription>
+                          </div>
+                          {course.status === "published" ? (
+                            <Badge className="bg-success text-success-foreground">발행됨</Badge>
+                          ) : course.status === "in_review" ? (
+                            <Badge className="bg-primary text-primary-foreground">검토 중</Badge>
+                          ) : (
+                            <Badge variant="outline">초안</Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {course.level && (
+                            <Badge variant="outline">{course.level}</Badge>
+                          )}
+                          {course.total_duration && (
+                            <Badge variant="secondary">{course.total_duration}</Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(course.created_at).toLocaleDateString("ko-KR")}
+                          </span>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/courses/${course.id}/builder`);
+                            }}
+                          >
+                            빌더 열기
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

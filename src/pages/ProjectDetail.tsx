@@ -28,7 +28,6 @@ const STAGE_NAMES = [
   "커리큘럼 설계",
   "수업안 작성",
   "슬라이드 구성",
-  "실습 템플릿",
   "평가/퀴즈",
   "최종 검토"
 ];
@@ -68,8 +67,22 @@ const ProjectDetail = () => {
             table: 'project_stages',
             filter: `project_id=eq.${id}`,
           },
-          () => {
-            fetchProjectDetails();
+          async () => {
+            // 선택된 AI 모델의 stages만 다시 가져오기
+            if (selectedAiModel) {
+              const { data: stagesData, error: stagesError } = await supabase
+                .from("project_stages")
+                .select("*")
+                .eq("project_id", id!)
+                .eq("ai_model", selectedAiModel)
+                .order("stage_order", { ascending: true });
+
+              if (!stagesError && stagesData) {
+                setStages(stagesData);
+              }
+            } else {
+              fetchProjectDetails();
+            }
           }
         )
         .on(
@@ -148,7 +161,10 @@ const ProjectDetail = () => {
       }
       
       setProject(projectData);
-      setSelectedAiModel(projectData.ai_model);
+      
+      // AI 모델 설정 (프로젝트의 ai_model 사용)
+      const currentAiModel = projectData.ai_model || "gemini";
+      setSelectedAiModel(currentAiModel);
 
       // AI 결과 가져오기
       const { data: aiResultsData, error: aiResultsError } = await supabase
@@ -160,12 +176,12 @@ const ProjectDetail = () => {
       if (aiResultsError) throw aiResultsError;
       setAiResults(aiResultsData || []);
 
-      // 단계 정보 가져오기 (선택된 AI 모델의 stages)
+      // 단계 정보 가져오기 (프로젝트의 AI 모델의 stages)
       const { data: stagesData, error: stagesError } = await supabase
         .from("project_stages")
         .select("*")
         .eq("project_id", id)
-        .eq("ai_model", selectedAiModel || projectData.ai_model)
+        .eq("ai_model", currentAiModel)
         .order("stage_order", { ascending: true });
 
       if (stagesError) throw stagesError;
@@ -534,8 +550,14 @@ const ProjectDetail = () => {
       setSavingTemplate(false);
     }
   };
-  const handleAiModelChange = async (newModel: string) => {
-    setSelectedAiModel(newModel);
+  const handleAiModelChange = async (newModel: string, skipAutoRetry = false) => {
+    // 이미 같은 모델이 선택되어 있으면 변경하지 않음 (자동 재시도가 아닌 경우)
+    if (!skipAutoRetry && selectedAiModel === newModel) return;
+    
+    // skipAutoRetry가 true인 경우에도 모델이 다르면 변경
+    if (selectedAiModel !== newModel) {
+      setSelectedAiModel(newModel);
+    }
     
     // 선택한 AI 모델의 stages 불러오기
     try {
@@ -548,6 +570,37 @@ const ProjectDetail = () => {
 
       if (error) throw error;
       setStages(stagesData || []);
+
+      // 선택한 모델의 결과 확인
+      const existingResult = aiResults.find(r => r.ai_model === newModel);
+      
+      // 결과가 없거나 실패 상태이거나 stages가 없을 때 자동으로 재생성 시작 (skipAutoRetry가 false인 경우만)
+      if (!skipAutoRetry) {
+        const hasNoResult = !existingResult;
+        const hasFailedResult = existingResult?.status === 'failed';
+        const hasNoStages = !stagesData || stagesData.length === 0;
+        const allStagesFailed = stagesData && stagesData.length > 0 && stagesData.every(s => s.status === 'failed');
+
+        if (hasNoResult || hasFailedResult || hasNoStages || allStagesFailed) {
+          console.log(`Auto-retrying with ${newModel} model. Reason:`, {
+            hasNoResult,
+            hasFailedResult,
+            hasNoStages,
+            allStagesFailed,
+          });
+          
+          // 자동으로 재생성 시작 (비동기로 실행하여 UI 블로킹 방지)
+          handleRetryWithAi(newModel).catch((error) => {
+            console.error("Auto-retry failed:", error);
+            toast({
+              title: "자동 재생성 실패",
+              description: "AI 재생성을 시작하는 중 오류가 발생했습니다.",
+              variant: "destructive",
+            });
+          });
+          return; // handleRetryWithAi가 비동기로 실행되므로 여기서 종료
+        }
+      }
     } catch (error) {
       console.error("Error fetching stages for AI model:", error);
     }
@@ -566,8 +619,8 @@ const ProjectDetail = () => {
           title: "이미 생성된 결과가 있습니다",
           description: "해당 AI 모델의 결과를 선택해서 확인하세요.",
         });
-        setSelectedAiModel(aiModel);
-        handleAiModelChange(aiModel);
+        // 자동 재시도 방지하고 stages만 불러오기
+        await handleAiModelChange(aiModel, true);
         return;
       }
 
@@ -594,8 +647,20 @@ const ProjectDetail = () => {
 
       if (funcError) throw funcError;
 
-      // 선택한 AI 모델로 변경
+      // 선택한 AI 모델로 변경 (stages는 실시간 업데이트로 자동 새로고침됨)
       setSelectedAiModel(aiModel);
+      
+      // stages 다시 불러오기 (자동 재시도 방지)
+      const { data: stagesData, error: stagesError } = await supabase
+        .from("project_stages")
+        .select("*")
+        .eq("project_id", project.id)
+        .eq("ai_model", aiModel)
+        .order("stage_order", { ascending: true });
+
+      if (!stagesError && stagesData) {
+        setStages(stagesData);
+      }
     } catch (error) {
       console.error("Error retrying with AI:", error);
       toast({
@@ -690,21 +755,21 @@ const ProjectDetail = () => {
                     </div>
                     <div className="text-right">
                       <div className="text-4xl font-bold text-primary mb-1">
-                        {Math.round((stages.filter(s => s.status === 'completed').length / (stages.length || 6)) * 100)}%
+                        {Math.round((stages.filter(s => s.status === 'completed').length / STAGE_NAMES.length) * 100)}%
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {stages.filter(s => s.status === 'completed').length} / {stages.length || 6} 완료
+                        {stages.filter(s => s.status === 'completed').length} / {STAGE_NAMES.length} 완료
                       </p>
                     </div>
                   </div>
                   
                   <Progress 
-                    value={(stages.filter(s => s.status === 'completed').length / (stages.length || 6)) * 100} 
+                    value={(stages.filter(s => s.status === 'completed').length / STAGE_NAMES.length) * 100} 
                     className="h-3" 
                   />
                   
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {['콘텐츠 기획', '시나리오 작성', '이미지 생성', '음성/영상 제작', '콘텐츠 조립', '배포'].map((stageName, idx) => {
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {STAGE_NAMES.map((stageName, idx) => {
                       const stage = stages.find(s => s.stage_name === stageName);
                       const status = stage?.status || 'pending';
                       return (

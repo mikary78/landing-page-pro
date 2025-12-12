@@ -10,15 +10,138 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// 교육 콘텐츠 생성 단계
+// 교육 콘텐츠 생성 단계 (5단계)
 const STAGE_NAMES = [
   "커리큘럼 설계",
   "수업안 작성",
   "슬라이드 구성",
-  "실습 템플릿",
   "평가/퀴즈",
   "최종 검토"
 ];
+
+// ============================================================
+// AI 서비스별 직접 호출 함수
+// ============================================================
+
+// Gemini API 호출
+async function generateWithGemini(
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string
+): Promise<string> {
+  // systemInstruction은 v1beta에서만 지원됨
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts
+    ?.map((p: { text?: string }) => p.text || "")
+    .join("")
+    .trim() || "";
+}
+
+// Claude API 호출
+async function generateWithClaude(
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string
+): Promise<string> {
+  const url = "https://api.anthropic.com/v1/messages";
+  
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data?.content
+    ?.filter((block: { type: string }) => block.type === "text")
+    .map((block: { text: string }) => block.text)
+    .join("")
+    .trim() || "";
+}
+
+// ChatGPT API 호출
+async function generateWithChatGPT(
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string
+): Promise<string> {
+  const url = "https://api.openai.com/v1/chat/completions";
+  
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 2048,
+      temperature: 0.7,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ChatGPT API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data?.choices?.[0]?.message?.content?.trim() || "";
+}
 
 // 각 단계별 상세 프롬프트
 const STAGE_PROMPTS: Record<string, string> = {
@@ -69,29 +192,6 @@ const STAGE_PROMPTS: Record<string, string> = {
 - 한 슬라이드 한 개념
 - 텍스트 최소화, 시각화 최대화
 - 일관된 디자인 스타일 유지`,
-
-  "실습 템플릿": `당신은 교육 콘텐츠 전문가입니다. 학습자들이 실제로 따라할 수 있는 실습 템플릿을 작성해주세요.
-
-다음 형식으로 실습 자료를 작성해주세요:
-1. **실습 개요**
-   - 실습 목표
-   - 예상 소요 시간
-   - 필요 도구/환경
-
-2. **단계별 실습 가이드**
-   - Step 1: [제목]
-     - 상세 설명
-     - 스크린샷/코드 예시 위치 표시
-     - 예상 결과
-   - Step 2: ...
-
-3. **실습 체크리스트**
-   - [ ] 완료해야 할 항목들
-
-4. **트러블슈팅 가이드**
-   - 자주 발생하는 문제와 해결법
-
-5. **심화 과제** (선택)`,
 
   "평가/퀴즈": `당신은 교육 평가 전문가입니다. 학습 효과를 측정할 수 있는 평가 문항과 퀴즈를 작성해주세요.
 
@@ -167,12 +267,22 @@ serve(async (req) => {
     // --------------------------------------------------------
     // 환경 변수 확인
     // --------------------------------------------------------
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("VERTEX_API_KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing required environment variables");
+    console.log("Environment variables check:", {
+      hasGEMINI_API_KEY: !!GEMINI_API_KEY,
+      hasANTHROPIC_API_KEY: !!ANTHROPIC_API_KEY,
+      hasOPENAI_API_KEY: !!OPENAI_API_KEY,
+      hasSUPABASE_URL: !!SUPABASE_URL,
+      hasSUPABASE_SERVICE_ROLE_KEY: !!SUPABASE_SERVICE_ROLE_KEY,
+    });
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(`Missing required environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY`);
     }
 
     // --------------------------------------------------------
@@ -212,34 +322,33 @@ serve(async (req) => {
 
       try {
         const stagePrompt = STAGE_PROMPTS[stage.stage_name] || '';
-        
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: aiModel,
-            messages: [
-              {
-                role: 'system',
-                content: stagePrompt
-              },
-              {
-                role: 'user',
-                content: `브리프: ${project?.document_content || ''}\n\n기존 콘텐츠:\n${stage.content}\n\n사용자 피드백: ${stage.feedback}\n\n위 피드백을 반영하여 "${stage.stage_name}" 단계의 콘텐츠를 개선해주세요.`
-              }
-            ],
-          }),
-        });
+        const userPrompt = `브리프: ${project?.document_content || ''}\n\n기존 콘텐츠:\n${stage.content}\n\n사용자 피드백: ${stage.feedback}\n\n위 피드백을 반영하여 "${stage.stage_name}" 단계의 콘텐츠를 개선해주세요.`;
 
-        if (!response.ok) {
-          throw new Error(`AI API error: ${response.status}`);
+        let regeneratedContent: string | null = null;
+
+        // 각 AI 서비스별로 직접 호출
+        if (aiModel === 'gemini' || aiModel === 'gemini-1.5-flash' || aiModel === 'gemini-2.0-flash' || aiModel === 'gemini-2.0-flash-exp') {
+          if (!GEMINI_API_KEY) {
+            throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+          }
+          regeneratedContent = await generateWithGemini('gemini-2.0-flash-exp', stagePrompt, userPrompt, GEMINI_API_KEY);
+        } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet') {
+          if (!ANTHROPIC_API_KEY) {
+            throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
+          }
+          regeneratedContent = await generateWithClaude('claude-3-5-sonnet-20241022', stagePrompt, userPrompt, ANTHROPIC_API_KEY);
+        } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o') {
+          if (!OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
+          }
+          regeneratedContent = await generateWithChatGPT('gpt-4o', stagePrompt, userPrompt, OPENAI_API_KEY);
+        } else {
+          throw new Error(`지원하지 않는 AI 모델: ${aiModel}`);
         }
 
-        const data = await response.json();
-        const regeneratedContent = data.choices?.[0]?.message?.content;
+        if (!regeneratedContent) {
+          throw new Error('AI 응답에 콘텐츠가 없습니다.');
+        }
 
         // 재생성된 콘텐츠 업데이트
         await supabase
@@ -365,9 +474,17 @@ serve(async (req) => {
       .eq("id", projectId);
 
     // ========================================================
-    // 다른 AI 재시도 시 기존 스테이지 제거
+    // 기존 스테이지 확인 및 처리
     // ========================================================
-    if (retryWithDifferentAi) {
+    // 항상 해당 AI 모델의 기존 stages를 삭제하여 중복 방지
+    const { data: existingStages } = await supabase
+      .from("project_stages")
+      .select("id, stage_name, stage_order")
+      .eq("project_id", projectId)
+      .eq("ai_model", aiModel);
+
+    if (existingStages && existingStages.length > 0) {
+      console.log(`Found ${existingStages.length} existing stages for AI: ${aiModel}. Deleting...`);
       const { error: deleteError } = await supabase
         .from("project_stages")
         .delete()
@@ -376,7 +493,12 @@ serve(async (req) => {
 
       if (deleteError) {
         console.error("Failed to delete existing stages:", deleteError);
+        // 삭제 실패해도 계속 진행 (중복 방지를 위해)
+      } else {
+        console.log(`Successfully deleted ${existingStages.length} existing stages for AI: ${aiModel}`);
       }
+    } else {
+      console.log(`No existing stages found for AI: ${aiModel}. Proceeding with creation.`);
     }
 
     // 이전 단계 콘텐츠 누적 저장
@@ -417,39 +539,158 @@ serve(async (req) => {
           ? `\n\n이전 단계 결과물:\n${previousContents.map((c, idx) => `### ${STAGE_NAMES[idx]}\n${c}`).join('\n\n')}`
           : '';
 
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: aiModel,
-            messages: [
-              {
-                role: 'system',
-                content: stagePrompt
-              },
-              {
-                role: 'user',
-                content: `교육 브리프:\n${documentContent}\n\n${educationContext}${previousContext}\n\n위 내용을 바탕으로 "${stageName}" 단계의 콘텐츠를 생성해주세요.`
-              }
-            ],
-          }),
-        });
+        // AI 모델 이름 매핑
+        const modelMapping: Record<string, string> = {
+          'gemini': 'gemini-2.0-flash-exp',
+          'claude': 'claude-3-5-sonnet-20241022',
+          'chatgpt': 'gpt-4o',
+        };
+        const apiModel = modelMapping[aiModel] || aiModel;
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`AI API error for stage ${stageName}:`, response.status, errorText);
-          await supabase
-            .from('project_stages')
-            .update({ status: 'failed' })
-            .eq('id', newStage.id);
+        const userPrompt = `교육 브리프:\n${documentContent}\n\n${educationContext}${previousContext}\n\n위 내용을 바탕으로 "${stageName}" 단계의 콘텐츠를 생성해주세요.`;
+
+        console.log(`Calling AI API for stage ${stageName} with model: ${apiModel} (original: ${aiModel})`);
+
+        // API 호출 (재시도 로직 포함)
+        let stageContent: string | null = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+        let apiCallSuccess = false;
+
+        while (retryCount < maxRetries) {
+          try {
+            // 요청 간격 추가 (rate limiting 방지)
+            if (retryCount > 0) {
+              const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, 최대 10초
+              console.log(`Retrying API call for stage ${stageName} (attempt ${retryCount + 1}/${maxRetries}) after ${delay}ms`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            // 각 AI 서비스별로 직접 호출
+            if (aiModel === 'gemini' || aiModel === 'gemini-1.5-flash' || aiModel === 'gemini-2.0-flash' || aiModel === 'gemini-2.0-flash-exp') {
+              if (!GEMINI_API_KEY) {
+                throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+              }
+              stageContent = await generateWithGemini(apiModel, stagePrompt, userPrompt, GEMINI_API_KEY);
+              apiCallSuccess = true;
+              break;
+            } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet') {
+              if (!ANTHROPIC_API_KEY) {
+                throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
+              }
+              stageContent = await generateWithClaude(apiModel, stagePrompt, userPrompt, ANTHROPIC_API_KEY);
+              apiCallSuccess = true;
+              break;
+            } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o') {
+              if (!OPENAI_API_KEY) {
+                throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
+              }
+              stageContent = await generateWithChatGPT(apiModel, stagePrompt, userPrompt, OPENAI_API_KEY);
+              apiCallSuccess = true;
+              break;
+            } else {
+              throw new Error(`지원하지 않는 AI 모델: ${aiModel}`);
+            }
+          } catch (apiError) {
+            const errorMsg = apiError instanceof Error ? apiError.message : String(apiError);
+            console.error(`AI API error for stage ${stageName} (attempt ${retryCount + 1}/${maxRetries}):`, errorMsg);
+
+            // 429 (Rate Limit) 에러는 재시도
+            if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('quota')) {
+              if (retryCount < maxRetries - 1) {
+                const delay = (retryCount + 1) * 5000; // 5초, 10초, 15초
+                console.log(`Rate limit exceeded for stage ${stageName}. Retrying after ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retryCount++;
+                continue;
+              } else {
+                // 최대 재시도 횟수 초과
+                await supabase
+                  .from('project_stages')
+                  .update({ 
+                    status: 'failed',
+                    content: `API 할당량 초과: ${aiModel} API의 할당량이 초과되었습니다. 잠시 후 다시 시도하거나 다른 AI 모델을 선택해주세요.`,
+                  })
+                  .eq('id', newStage.id);
+                failCount++;
+                break;
+              }
+            }
+
+            // 401, 403 (인증 오류)는 재시도 불가
+            if (errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('unauthorized') || errorMsg.includes('forbidden')) {
+              let apiKeyName = '';
+              if (aiModel === 'gemini') apiKeyName = 'GEMINI_API_KEY';
+              else if (aiModel === 'claude') apiKeyName = 'ANTHROPIC_API_KEY';
+              else if (aiModel === 'chatgpt') apiKeyName = 'OPENAI_API_KEY';
+              
+              await supabase
+                .from('project_stages')
+                .update({ 
+                  status: 'failed',
+                  content: `API 인증 오류: ${apiKeyName}가 유효하지 않거나 설정되지 않았습니다. Supabase Dashboard에서 환경 변수를 확인해주세요.`,
+                })
+                .eq('id', newStage.id);
+              failCount++;
+              break;
+            }
+
+            // 400 (크레딧 부족 등)는 재시도 불가
+            if (errorMsg.includes('400') || errorMsg.includes('credit') || errorMsg.includes('billing')) {
+              await supabase
+                .from('project_stages')
+                .update({ 
+                  status: 'failed',
+                  content: `API 오류: ${errorMsg.substring(0, 200)}`,
+                })
+                .eq('id', newStage.id);
+              failCount++;
+              break;
+            }
+
+            // 5xx 에러는 재시도 가능
+            if (errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') || errorMsg.includes('504')) {
+              if (retryCount < maxRetries - 1) {
+                retryCount++;
+                continue;
+              }
+            }
+
+            // 최종 실패
+            if (retryCount < maxRetries - 1) {
+              retryCount++;
+              continue;
+            } else {
+              await supabase
+                .from('project_stages')
+                .update({ 
+                  status: 'failed',
+                  content: `API 오류: ${errorMsg.substring(0, 200)}`,
+                })
+                .eq('id', newStage.id);
+              failCount++;
+              break;
+            }
+          }
+        }
+
+        // 재시도 실패로 인해 콘텐츠가 없으면 다음 단계로
+        if (!apiCallSuccess || !stageContent) {
           continue;
         }
 
-        const data = await response.json();
-        const stageContent = data.choices?.[0]?.message?.content;
+        if (!stageContent || stageContent.trim().length === 0) {
+          console.error(`Empty content in AI response for stage ${stageName}`);
+          await supabase
+            .from('project_stages')
+            .update({ 
+              status: 'failed',
+              content: `AI 응답에 콘텐츠가 없습니다.`,
+            })
+            .eq('id', newStage.id);
+          failCount++;
+          continue;
+        }
 
         // 이전 단계 콘텐츠에 추가
         previousContents.push(stageContent || '');
@@ -465,10 +706,20 @@ serve(async (req) => {
         console.log(`Stage ${stageName} completed successfully`);
         successCount++;
       } catch (error) {
-        console.error(`Error generating content for stage ${stageName}:`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error(`Error generating content for stage ${stageName}:`, {
+          error: errorMessage,
+          stack: errorStack,
+          stageName,
+          aiModel,
+        });
         await supabase
           .from('project_stages')
-          .update({ status: 'failed' })
+          .update({ 
+            status: 'failed',
+            content: `오류 발생: ${errorMessage}`,
+          })
           .eq('id', newStage.id);
         failCount++;
       }
