@@ -331,17 +331,17 @@ serve(async (req) => {
           if (!GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithGemini('gemini-2.0-flash-exp', stagePrompt, userPrompt, GEMINI_API_KEY);
+          regeneratedContent = await generateWithGemini('gemini-2.5-pro-exp-03', stagePrompt, userPrompt, GEMINI_API_KEY);
         } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet') {
           if (!ANTHROPIC_API_KEY) {
             throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithClaude('claude-3-5-sonnet-20241022', stagePrompt, userPrompt, ANTHROPIC_API_KEY);
-        } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o') {
+          regeneratedContent = await generateWithClaude('claude-opus-4-5-20251101', stagePrompt, userPrompt, ANTHROPIC_API_KEY);
+        } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-5.2') {
           if (!OPENAI_API_KEY) {
             throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithChatGPT('gpt-4o', stagePrompt, userPrompt, OPENAI_API_KEY);
+          regeneratedContent = await generateWithChatGPT('gpt-5.2', stagePrompt, userPrompt, OPENAI_API_KEY);
         } else {
           throw new Error(`지원하지 않는 AI 모델: ${aiModel}`);
         }
@@ -541,9 +541,9 @@ serve(async (req) => {
 
         // AI 모델 이름 매핑
         const modelMapping: Record<string, string> = {
-          'gemini': 'gemini-2.0-flash-exp',
-          'claude': 'claude-3-5-sonnet-20241022',
-          'chatgpt': 'gpt-4o',
+          'gemini': 'gemini-2.5-pro-exp-03',
+          'claude': 'claude-opus-4-5-20251101',
+          'chatgpt': 'gpt-5.2',
         };
         const apiModel = modelMapping[aiModel] || aiModel;
 
@@ -581,7 +581,7 @@ serve(async (req) => {
               stageContent = await generateWithClaude(apiModel, stagePrompt, userPrompt, ANTHROPIC_API_KEY);
               apiCallSuccess = true;
               break;
-            } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o') {
+            } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-5.2') {
               if (!OPENAI_API_KEY) {
                 throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
               }
