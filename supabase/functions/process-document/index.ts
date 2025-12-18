@@ -30,17 +30,19 @@ async function generateWithGemini(
   userPrompt: string,
   apiKey: string
 ): Promise<string> {
-  // systemInstruction은 v1beta에서만 지원됨
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // v1 API 사용 (더 안정적)
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+
+  // 시스템 프롬프트와 사용자 프롬프트 결합
+  const combinedPrompt = `${systemPrompt}\n\n---\n\n${userPrompt}`;
 
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      systemInstruction: {
-        parts: [{ text: systemPrompt }],
-      },
+      contents: [{ 
+        parts: [{ text: combinedPrompt }] 
+      }],
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 2048,
@@ -326,22 +328,22 @@ serve(async (req) => {
 
         let regeneratedContent: string | null = null;
 
-        // 각 AI 서비스별로 직접 호출
+        // 각 AI 서비스별로 직접 호출 (최신 모델 사용)
         if (aiModel === 'gemini' || aiModel === 'gemini-1.5-flash' || aiModel === 'gemini-2.0-flash' || aiModel === 'gemini-2.0-flash-exp') {
           if (!GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithGemini('gemini-2.5-pro-exp-03', stagePrompt, userPrompt, GEMINI_API_KEY);
-        } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet') {
+          regeneratedContent = await generateWithGemini('gemini-2.0-flash-exp', stagePrompt, userPrompt, GEMINI_API_KEY);
+        } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet' || aiModel === 'claude-3-5-haiku') {
           if (!ANTHROPIC_API_KEY) {
             throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithClaude('claude-opus-4-5-20251101', stagePrompt, userPrompt, ANTHROPIC_API_KEY);
-        } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-5.2') {
+          regeneratedContent = await generateWithClaude('claude-3-5-haiku-20241022', stagePrompt, userPrompt, ANTHROPIC_API_KEY);
+        } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-4o-mini') {
           if (!OPENAI_API_KEY) {
             throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
           }
-          regeneratedContent = await generateWithChatGPT('gpt-5.2', stagePrompt, userPrompt, OPENAI_API_KEY);
+          regeneratedContent = await generateWithChatGPT('gpt-4o-mini', stagePrompt, userPrompt, OPENAI_API_KEY);
         } else {
           throw new Error(`지원하지 않는 AI 모델: ${aiModel}`);
         }
@@ -539,11 +541,11 @@ serve(async (req) => {
           ? `\n\n이전 단계 결과물:\n${previousContents.map((c, idx) => `### ${STAGE_NAMES[idx]}\n${c}`).join('\n\n')}`
           : '';
 
-        // AI 모델 이름 매핑
+        // AI 모델 이름 매핑 (2025.12 최신 - 무료/저렴한 모델 우선)
         const modelMapping: Record<string, string> = {
-          'gemini': 'gemini-2.5-pro-exp-03',
-          'claude': 'claude-opus-4-5-20251101',
-          'chatgpt': 'gpt-5.2',
+          'gemini': 'gemini-2.0-flash-exp',  // 무료 최신 모델
+          'claude': 'claude-3-5-haiku-20241022',  // 저렴한 Haiku 모델 (Opus는 크레딧 부족)
+          'chatgpt': 'gpt-4o-mini',  // 저렴한 mini 모델
         };
         const apiModel = modelMapping[aiModel] || aiModel;
 
@@ -566,7 +568,7 @@ serve(async (req) => {
               await new Promise(resolve => setTimeout(resolve, delay));
             }
 
-            // 각 AI 서비스별로 직접 호출
+            // 각 AI 서비스별로 직접 호출 (최신 무료/저렴한 모델)
             if (aiModel === 'gemini' || aiModel === 'gemini-1.5-flash' || aiModel === 'gemini-2.0-flash' || aiModel === 'gemini-2.0-flash-exp') {
               if (!GEMINI_API_KEY) {
                 throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
@@ -574,14 +576,14 @@ serve(async (req) => {
               stageContent = await generateWithGemini(apiModel, stagePrompt, userPrompt, GEMINI_API_KEY);
               apiCallSuccess = true;
               break;
-            } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet') {
+            } else if (aiModel === 'claude' || aiModel === 'claude-3-5-sonnet' || aiModel === 'claude-3-5-haiku') {
               if (!ANTHROPIC_API_KEY) {
                 throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
               }
               stageContent = await generateWithClaude(apiModel, stagePrompt, userPrompt, ANTHROPIC_API_KEY);
               apiCallSuccess = true;
               break;
-            } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-5.2') {
+            } else if (aiModel === 'chatgpt' || aiModel === 'gpt-4o' || aiModel === 'gpt-4o-mini') {
               if (!OPENAI_API_KEY) {
                 throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.');
               }

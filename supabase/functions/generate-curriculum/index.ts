@@ -96,8 +96,9 @@ serve(async (req) => {
     // --------------------------------------------------------
     // AI 모델 이름 매핑
     // --------------------------------------------------------
+    // AI 모델 이름 매핑 (2024.12 최신)
     const modelMapping: Record<string, string> = {
-      'gemini': 'gemini-2.0-flash-exp',
+      'gemini': 'gemini-1.5-flash',
       'claude': 'claude-3-5-sonnet-20241022',
       'chatgpt': 'gpt-4o',
     };
@@ -116,16 +117,16 @@ serve(async (req) => {
         if (!GEMINI_API_KEY) {
           throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
         }
-        // Gemini API v1beta 사용 (systemInstruction은 v1beta에서만 지원)
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${apiModel}:generateContent?key=${GEMINI_API_KEY}`;
+        // Gemini API v1 사용 (더 안정적)
+        const url = `https://generativelanguage.googleapis.com/v1/models/${apiModel}:generateContent?key=${GEMINI_API_KEY}`;
+        const combinedPrompt = `${systemPrompt}\n\n---\n\n${curriculumPrompt}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: curriculumPrompt }] }],
-            systemInstruction: {
-              parts: [{ text: systemPrompt }],
-            },
+            contents: [{ 
+              parts: [{ text: combinedPrompt }] 
+            }],
             generationConfig: {
               temperature: 0.7,
               maxOutputTokens: 4000,

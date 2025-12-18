@@ -17,6 +17,7 @@ import CourseCreatePage from "./pages/CourseCreatePage";
 import CourseBuilderPage from "./pages/CourseBuilderPage";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
+import Admin from "./pages/Admin";
 
 function App() {
   const [queryClient] = useState(() => new QueryClient({
@@ -46,6 +47,7 @@ function App() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/courses/create" element={<CourseCreatePage />} />
             <Route path="/courses/:id/builder" element={<CourseBuilderPage />} />
+            <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

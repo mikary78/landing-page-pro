@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { processDocument } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,14 +231,13 @@ const ProjectDetail = () => {
         description: "단계가 재생성 중입니다.",
       });
 
-      // Edge function 호출하여 재생성
-      const { error: funcError } = await supabase.functions.invoke("process-document", {
-        body: {
-          projectId: id,
-          stageId,
-          stageOrder,
-          regenerate: true,
-        },
+      // Azure Function 호출하여 재생성
+      const { error: funcError } = await processDocument({
+        projectId: id!,
+        aiModel: project.ai_model as 'gemini' | 'claude' | 'chatgpt',
+        stageId,
+        stageOrder,
+        regenerate: true,
       });
 
       if (funcError) throw funcError;
@@ -365,51 +365,122 @@ const ProjectDetail = () => {
     if (!project || !currentContent) return;
     
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - (margin * 2);
-      
-      // 제목
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text(project.title, margin, margin);
-      
-      let yPos = margin + 15;
-      
-      // 설명
-      if (project.description) {
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        const descLines = doc.splitTextToSize(project.description, maxWidth);
-        doc.text(descLines, margin, yPos);
-        yPos += descLines.length * 7 + 10;
+      // 새 창에서 PDF용 HTML 생성 후 인쇄 다이얼로그 열기
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast({
+          title: "팝업 차단",
+          description: "팝업을 허용해주세요.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      // 마크다운 형식을 HTML로 변환
+      const formatContent = (text: string) => {
+        return text
+          .split('\n')
+          .map(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('### ')) {
+              return `<h3 style="font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #1e40af;">${trimmed.slice(4)}</h3>`;
+            }
+            if (trimmed.startsWith('## ')) {
+              return `<h2 style="font-size: 18px; font-weight: bold; margin: 24px 0 12px 0; color: #1e3a8a;">${trimmed.slice(3)}</h2>`;
+            }
+            if (trimmed.startsWith('# ')) {
+              return `<h1 style="font-size: 22px; font-weight: bold; margin: 28px 0 14px 0; color: #172554;">${trimmed.slice(2)}</h1>`;
+            }
+            if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+              return `<p style="font-weight: bold; margin: 16px 0 8px 0; color: #334155;">${trimmed.slice(2, -2)}</p>`;
+            }
+            if (trimmed.match(/^[•\-*]\s+/)) {
+              return `<li style="margin: 4px 0; margin-left: 20px;">${trimmed.replace(/^[•\-*]\s+/, '')}</li>`;
+            }
+            if (trimmed.match(/^\d+[.)]\s+/)) {
+              return `<li style="margin: 4px 0; margin-left: 20px;">${trimmed.replace(/^\d+[.)]\s+/, '')}</li>`;
+            }
+            if (trimmed === '') {
+              return '<br/>';
+            }
+            return `<p style="margin: 6px 0; line-height: 1.7;">${trimmed}</p>`;
+          })
+          .join('\n');
+      };
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+          <meta charset="UTF-8">
+          <title>${project.title}</title>
+          <style>
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            body {
+              font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', sans-serif;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 40px;
+              line-height: 1.6;
+              color: #1e293b;
+            }
+            h1.title {
+              font-size: 28px;
+              font-weight: bold;
+              color: #1e3a8a;
+              margin-bottom: 12px;
+              padding-bottom: 12px;
+              border-bottom: 3px solid #3b82f6;
+            }
+            p.description {
+              font-size: 16px;
+              color: #64748b;
+              margin-bottom: 24px;
+            }
+            .meta {
+              font-size: 12px;
+              color: #94a3b8;
+              margin-bottom: 32px;
+            }
+            hr {
+              border: none;
+              border-top: 1px solid #e2e8f0;
+              margin: 24px 0;
+            }
+            .content {
+              font-size: 14px;
+            }
+          </style>
+        </head>
+        <body>
+          <h1 class="title">${project.title}</h1>
+          ${project.description ? `<p class="description">${project.description}</p>` : ''}
+          <div class="meta">
+            생성일: ${new Date(project.created_at).toLocaleDateString('ko-KR')} | AI 모델: ${project.ai_model.toUpperCase()}
+          </div>
+          <hr/>
+          <div class="content">
+            ${formatContent(currentContent)}
+          </div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
       
-      // 구분선
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-      yPos += 10;
-      
-      // 콘텐츠
-      doc.setFontSize(11);
-      const contentLines = doc.splitTextToSize(currentContent, maxWidth);
-      
-      contentLines.forEach((line: string) => {
-        if (yPos > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
-        }
-        doc.text(line, margin, yPos);
-        yPos += 6;
-      });
-      
-      doc.save(`${project.title.replace(/\s+/g, '_')}.pdf`);
+      // 폰트 로딩 대기 후 인쇄
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      };
       
       toast({
-        title: "PDF 다운로드 완료",
-        description: "PDF 파일이 다운로드되었습니다.",
+        title: "PDF 다운로드",
+        description: "인쇄 다이얼로그에서 'PDF로 저장'을 선택하세요.",
       });
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -635,14 +706,12 @@ const ProjectDetail = () => {
         description: `${aiModel.toUpperCase()} 모델로 콘텐츠를 생성하고 있습니다.`,
       });
 
-      // Edge function 호출
-      const { error: funcError } = await supabase.functions.invoke("process-document", {
-        body: {
-          projectId: project.id,
-          documentContent: project.document_content,
-          aiModel: aiModel,
-          retryWithDifferentAi: true,
-        },
+      // Azure Function 호출
+      const { error: funcError } = await processDocument({
+        projectId: project.id,
+        documentContent: project.document_content,
+        aiModel: aiModel as 'gemini' | 'claude' | 'chatgpt',
+        retryWithDifferentAi: true,
       });
 
       if (funcError) throw funcError;

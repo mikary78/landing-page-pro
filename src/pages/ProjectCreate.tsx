@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { processDocument } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import BriefWizard, { BriefData } from "@/components/BriefWizard";
 import { Button } from "@/components/ui/button";
@@ -94,15 +95,13 @@ const ProjectCreate = () => {
       if (projectError) throw projectError;
 
       toast.success("AI가 콘텐츠를 생성하고 있습니다.");
-      
-      // Edge Function 호출 (프로젝트 생성 직후)
+
+      // Azure Function 호출 (프로젝트 생성 직후)
       try {
-        const { error: functionError, data: functionData } = await supabase.functions.invoke("process-document", {
-          body: {
-            projectId: project.id,
-            documentContent: formData.documentContent,
-            aiModel: formData.aiModel,
-          },
+        const { error: functionError, data: functionData } = await processDocument({
+          projectId: project.id,
+          documentContent: formData.documentContent,
+          aiModel: formData.aiModel as 'gemini' | 'claude' | 'chatgpt',
         });
 
         if (functionError) {
