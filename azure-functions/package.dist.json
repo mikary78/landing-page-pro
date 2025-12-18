@@ -1,0 +1,20 @@
+{
+  "name": "landing-page-pro-functions",
+  "version": "1.0.0",
+  "description": "Azure Functions for Landing Page Pro",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "pg": "^8.11.3",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0",
+    "openai": "^4.20.1",
+    "@anthropic-ai/sdk": "^0.17.0",
+    "@google/generative-ai": "^0.1.3",
+    "dotenv": "^16.3.1"
+  }
+}

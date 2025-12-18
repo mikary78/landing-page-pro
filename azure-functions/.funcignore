@@ -1,0 +1,14 @@
+.git*
+.vscode
+local.settings.json
+test
+.editorconfig
+.npmrc
+.env
+README.md
+src
+tsconfig.json
+*.d.ts
+*.d.ts.map
+package.dist.json
+deploy.zip

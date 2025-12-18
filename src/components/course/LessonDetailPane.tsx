@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Sparkles, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
 
@@ -24,6 +25,12 @@ const STAGE_NAMES = [
   "슬라이드 구성",
   "평가/퀴즈",
   "최종 검토",
+];
+
+const AI_MODELS = [
+  { value: "gemini", label: "Gemini", description: "Google AI" },
+  { value: "claude", label: "Claude", description: "Anthropic" },
+  { value: "chatgpt", label: "ChatGPT", description: "OpenAI" },
 ];
 
 const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
@@ -269,6 +276,29 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
           </div>
         </CardHeader>
         <CardContent>
+          {/* AI 모델 선택 */}
+          <div className="mb-4">
+            <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              AI 모델 선택
+            </label>
+            <Select value={selectedAiModel} onValueChange={setSelectedAiModel}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="AI 모델을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {AI_MODELS.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-xs text-muted-foreground">({model.description})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {!lesson.project_id ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
@@ -282,12 +312,12 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                 {generating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    생성 중...
+                    {selectedAiModel.toUpperCase()}로 생성 중...
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    이 레슨을 AI로 생성하기
+                    {selectedAiModel.toUpperCase()}로 콘텐츠 생성하기
                   </>
                 )}
               </Button>
@@ -303,12 +333,12 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                 {generating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    재생성 중...
+                    {selectedAiModel.toUpperCase()}로 재생성 중...
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    콘텐츠 재생성
+                    {selectedAiModel.toUpperCase()}로 콘텐츠 재생성
                   </>
                 )}
               </Button>

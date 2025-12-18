@@ -1,0 +1,17 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AZURE_POSTGRES_HOST": "psql-landing-page-pro.postgres.database.azure.com",
+    "AZURE_POSTGRES_DATABASE": "landingpagepro",
+    "AZURE_POSTGRES_USER": "pgadmin",
+    "AZURE_POSTGRES_PASSWORD": "LandingPage2025!@#Strong",
+    "AZURE_POSTGRES_PORT": "5432",
+    "ENTRA_TENANT_ID": "f9230b9b-e666-42ce-83be-aa6deb0f78b4",
+    "ENTRA_CLIENT_ID": "234895ba-cc32-4306-a28b-e287742f8",
+    "GEMINI_API_KEY": "<YOUR_GEMINI_API_KEY>",
+    "ANTHROPIC_API_KEY": "<YOUR_ANTHROPIC_API_KEY>",
+    "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>"
+  }
+}

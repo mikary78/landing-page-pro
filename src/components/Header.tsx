@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Rocket, LogOut, FolderOpen, BookOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Link } from "react-router-dom";
 
 const Header = () => {
   const { user, signOut } = useAuth();
+  const { isAdmin } = useUserRole(user?.id);
   
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -49,6 +51,13 @@ const Header = () => {
                     내 코스
                   </Button>
                 </Link>
+                {isAdmin && (
+                  <Link to="/admin">
+                    <Button variant="outline" className="gap-2">
+                      <span className="text-xs font-semibold">Admin</span>
+                    </Button>
+                  </Link>
+                )}
                 <span className="text-sm text-muted-foreground hidden md:inline">
                   {user.email}
                 </span>

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { generateCurriculum } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, Sparkles } from "lucide-react";
@@ -99,21 +100,16 @@ const CourseBuilderPage = () => {
 
       toast.info("AI가 커리큘럼을 생성하고 있습니다...");
 
-      // Edge Function 호출
-      const { error: functionError, data: functionData } = await supabase.functions.invoke(
-        "generate-curriculum",
-        {
-          body: {
-            courseId: course.id,
-            courseTitle: course.title,
-            courseDescription: course.description,
-            level: course.level,
-            targetAudience: course.target_audience,
-            totalDuration: course.total_duration,
-            aiModel: selectedAiModel,
-          },
-        }
-      );
+      // Azure Function 호출
+      const { error: functionError, data: functionData } = await generateCurriculum({
+        courseId: course.id,
+        courseTitle: course.title,
+        courseDescription: course.description || undefined,
+        level: course.level || undefined,
+        targetAudience: course.target_audience || undefined,
+        totalDuration: course.total_duration || undefined,
+        aiModel: selectedAiModel as 'gemini' | 'claude' | 'chatgpt',
+      });
 
       if (functionError) {
         console.error("Curriculum generation error:", functionError);
@@ -121,7 +117,7 @@ const CourseBuilderPage = () => {
       }
 
       if (functionData && !functionData.success) {
-        throw new Error(functionData.error || "커리큘럼 생성에 실패했습니다.");
+        throw new Error(functionData.message || "커리큘럼 생성에 실패했습니다.");
       }
 
       toast.success(

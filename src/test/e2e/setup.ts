@@ -8,6 +8,7 @@
 
 import { Builder, WebDriver, until, By, Capabilities } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome';
+import edge from 'selenium-webdriver/edge';
 import firefox from 'selenium-webdriver/firefox';
 
 // 테스트 환경 설정
@@ -18,53 +19,92 @@ export const IMPLICIT_WAIT = 5000; // 5초
 /**
  * WebDriver 인스턴스 생성
  */
-export async function createDriver(browser: 'chrome' | 'firefox' = 'chrome'): Promise<WebDriver> {
+export async function createDriver(browser: 'chrome' | 'edge' | 'firefox' = 'edge'): Promise<WebDriver> {
   let driver: WebDriver;
 
-  if (browser === 'chrome') {
-    const options = new chrome.Options();
-    
-    // 헤드리스 모드 (CI 환경용)
-    if (process.env.CI === 'true' || process.env.HEADLESS === 'true') {
-      options.addArguments('--headless');
-      options.addArguments('--no-sandbox');
-      options.addArguments('--disable-dev-shm-usage');
-    }
-    
-    // 기타 옵션
-    options.addArguments('--disable-gpu');
-    options.addArguments('--window-size=1920,1080');
-    options.addArguments('--disable-blink-features=AutomationControlled');
-    options.setExcludeSwitches(['enable-automation']);
+  try {
+    if (browser === 'chrome') {
+      const options = new chrome.Options();
 
-    driver = await new Builder()
-      .forBrowser('chrome')
-      .setChromeOptions(options)
-      .build();
-  } else {
-    const options = new firefox.Options();
-    
-    if (process.env.CI === 'true' || process.env.HEADLESS === 'true') {
-      options.addArguments('--headless');
+      // 헤드리스 모드 (CI 환경용)
+      if (process.env.CI === 'true' || process.env.HEADLESS === 'true') {
+        options.addArguments('--headless');
+        options.addArguments('--no-sandbox');
+        options.addArguments('--disable-dev-shm-usage');
+      }
+
+      // 기타 옵션
+      options.addArguments('--disable-gpu');
+      options.addArguments('--window-size=1920,1080');
+      options.addArguments('--disable-blink-features=AutomationControlled');
+      options.excludeSwitches('enable-automation');
+
+      console.log('Creating Chrome WebDriver...');
+      driver = await new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(options)
+        .build();
+      console.log('Chrome WebDriver created successfully');
+    } else if (browser === 'edge') {
+      const options = new edge.Options();
+
+      // 헤드리스 모드 (CI 환경용)
+      if (process.env.CI === 'true' || process.env.HEADLESS === 'true') {
+        options.addArguments('--headless');
+        options.addArguments('--no-sandbox');
+        options.addArguments('--disable-dev-shm-usage');
+      }
+
+      // 기타 옵션
+      options.addArguments('--disable-gpu');
+      options.addArguments('--window-size=1920,1080');
+      options.addArguments('--disable-blink-features=AutomationControlled');
+      options.excludeSwitches('enable-automation');
+
+      console.log('Creating Edge WebDriver...');
+      driver = await new Builder()
+        .forBrowser('MicrosoftEdge')
+        .setEdgeOptions(options)
+        .build();
+      console.log('Edge WebDriver created successfully');
+    } else {
+      const options = new firefox.Options();
+
+      if (process.env.CI === 'true' || process.env.HEADLESS === 'true') {
+        options.addArguments('--headless');
+      }
+
+      console.log('Creating Firefox WebDriver...');
+      driver = await new Builder()
+        .forBrowser('firefox')
+        .setFirefoxOptions(options)
+        .build();
+      console.log('Firefox WebDriver created successfully');
     }
 
-    driver = await new Builder()
-      .forBrowser('firefox')
-      .setFirefoxOptions(options)
-      .build();
+    // 암시적 대기 설정
+    await driver.manage().setTimeouts({
+      implicit: IMPLICIT_WAIT,
+      pageLoad: TIMEOUT,
+      script: TIMEOUT,
+    });
+
+    // 창 크기 설정
+    await driver.manage().window().setRect({ width: 1920, height: 1080 });
+
+    return driver;
+  } catch (error) {
+    console.error('Failed to create WebDriver:', error);
+    throw new Error(
+      'E2E 테스트를 실행하려면 다음이 필요합니다:\n' +
+      '1. Edge 브라우저 (Windows에 기본 설치됨) 또는 Chrome 브라우저\n' +
+      '2. EdgeDriver 설치 (npm install -g edgedriver) 또는 ChromeDriver\n' +
+      '   - Edge: npm install -g edgedriver\n' +
+      '   - Chrome: npm install -g chromedriver\n' +
+      '3. 개발 서버 실행 (npm run dev)\n\n' +
+      `원본 에러: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
-
-  // 암시적 대기 설정
-  await driver.manage().setTimeouts({
-    implicit: IMPLICIT_WAIT,
-    pageLoad: TIMEOUT,
-    script: TIMEOUT,
-  });
-
-  // 창 크기 설정
-  await driver.manage().window().setRect({ width: 1920, height: 1080 });
-
-  return driver;
 }
 
 /**

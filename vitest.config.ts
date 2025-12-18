@@ -11,10 +11,16 @@ export default defineConfig({
     css: true,
     // 테스트 파일이 없을 때 에러를 무시하지 않도록 설정
     passWithNoTests: true,
-    // 테스트 파일 패턴 명시 (더 넓은 범위)
+    // 테스트 파일 패턴 명시 (E2E 테스트 제외)
     include: [
       '**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       '**/__tests__/**/*.{js,ts,jsx,tsx}',
+    ],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/e2e/**',
+      '**/*.e2e.{test,spec}.{js,ts,jsx,tsx}',
     ],
     // webidl-conversions 에러를 무시하도록 설정
     // 이 에러는 Supabase 의존성 문제로 발생하며, 테스트 실행에는 영향 없음
