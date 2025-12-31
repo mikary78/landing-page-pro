@@ -15,9 +15,17 @@ interface JwtPayload {
   tid?: string; // Tenant ID
 }
 
-// JWKS Client 설정 (Microsoft Entra ID)
+// JWKS Client 설정 (External ID와 Entra ID 모두 지원)
+const tenantId = process.env.ENTRA_TENANT_ID;
+const tenantName = process.env.ENTRA_TENANT_NAME;
+
+// External ID를 사용하는 경우 ciamlogin.com 사용, 그렇지 않으면 일반 Entra ID
+const jwksUri = tenantName
+  ? `https://${tenantName}.ciamlogin.com/${tenantName}.onmicrosoft.com/discovery/v2.0/keys`
+  : `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
+
 const client = new jwksClient.JwksClient({
-  jwksUri: `https://login.microsoftonline.com/${process.env.ENTRA_TENANT_ID}/discovery/v2.0/keys`,
+  jwksUri: jwksUri,
   cache: true,
   cacheMaxAge: 86400000, // 24 hours
 });
@@ -38,18 +46,47 @@ function getKey(header: any, callback: (err: any, key?: string) => void) {
 
 /**
  * Verify JWT token
+ * Supports both standard Entra ID and Entra External ID tokens
  */
 export async function verifyToken(token: string): Promise<JwtPayload> {
   return new Promise((resolve, reject) => {
+    const clientId = process.env.ENTRA_CLIENT_ID || '';
+
+    // External ID와 일반 Entra ID 모두 지원
+    const validIssuers: string[] = [];
+
+    // External ID issuer (if tenant name is provided)
+    if (tenantName) {
+      validIssuers.push(
+        `https://${tenantName}.ciamlogin.com/${tenantId}/v2.0` // External ID v2.0
+      );
+    }
+
+    // Standard Entra ID issuers (fallback)
+    if (tenantId) {
+      validIssuers.push(
+        `https://sts.windows.net/${tenantId}/`, // v1.0 format
+        `https://login.microsoftonline.com/${tenantId}/v2.0` // v2.0 format
+      );
+    }
+
+    // External ID와 표준 Entra ID audience 모두 지원
+    const validAudiences: string[] = [clientId];
+    if (tenantName) {
+      validAudiences.push(`https://${tenantName}.onmicrosoft.com/api`);
+    } else {
+      validAudiences.push(`api://${clientId}`);
+    }
+
     jwt.verify(
       token,
       getKey,
       {
-        audience: process.env.ENTRA_CLIENT_ID,
-        issuer: `https://login.microsoftonline.com/${process.env.ENTRA_TENANT_ID}/v2.0`,
+        audience: validAudiences,
+        issuer: validIssuers,
         algorithms: ['RS256'],
       },
-      (err, decoded) => {
+      (err: any, decoded: any) => {
         if (err) {
           reject(err);
         } else {

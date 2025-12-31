@@ -19,10 +19,27 @@ async function getAccessToken(): Promise<string | null> {
       return null;
     }
 
+    console.log('[AzureFunctions] Acquiring token with scopes:', loginRequest.scopes);
     const response = await msalInstance.acquireTokenSilent({
       ...loginRequest,
       account: accounts[0],
     });
+
+    console.log('[AzureFunctions] Token acquired successfully');
+    console.log('[AzureFunctions] Token length:', response.accessToken.length);
+    console.log('[AzureFunctions] Full token:', response.accessToken);
+
+    // Decode and log token payload for debugging
+    try {
+      const parts = response.accessToken.split('.');
+      const payload = JSON.parse(atob(parts[1]));
+      console.log('[AzureFunctions] Token payload:', payload);
+      console.log('[AzureFunctions] Audience (aud):', payload.aud);
+      console.log('[AzureFunctions] Expected aud:', 'api://234895ba-cc32-4306-a28b-e287742f8e4e');
+      console.log('[AzureFunctions] Match:', payload.aud === 'api://234895ba-cc32-4306-a28b-e287742f8e4e' ? '✅' : '❌');
+    } catch (e) {
+      console.error('[AzureFunctions] Failed to decode token:', e);
+    }
 
     return response.accessToken;
   } catch (error) {
@@ -41,6 +58,7 @@ async function callAzureFunction<T = any>(
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
     const accessToken = await getAccessToken();
+    console.log('[AzureFunctions] Access token for request:', accessToken ? 'PRESENT' : 'NULL');
 
     const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
     const headers: HeadersInit = {
@@ -49,6 +67,9 @@ async function callAzureFunction<T = any>(
 
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
+      console.log('[AzureFunctions] Authorization header added');
+    } else {
+      console.warn('[AzureFunctions] No access token - request will be unauthenticated');
     }
 
     const options: RequestInit = {
@@ -159,6 +180,17 @@ export async function generateCurriculum(
 // ============================================================
 
 /**
+ * Call Azure Function (exported for direct use)
+ */
+export async function callAzureFunctionDirect<T = any>(
+  endpoint: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'POST',
+  body?: any
+): Promise<{ data: T | null; error: Error | null }> {
+  return callAzureFunction<T>(endpoint, method, body);
+}
+
+/**
  * Call Azure Function without authentication (for local testing)
  */
 export async function callAzureFunctionUnauthenticated<T = any>(
@@ -183,13 +215,25 @@ export async function callAzureFunctionUnauthenticated<T = any>(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Azure Function error: ${response.status} ${errorText}`);
+      const error = new Error(`Azure Function error: ${response.status} ${errorText}`);
+
+      // 401 오류는 예상된 동작이므로 콘솔에 로그하지 않음
+      if (response.status !== 401) {
+        console.error(`[AzureFunctions] Error calling ${endpoint}:`, error);
+      }
+
+      throw error;
     }
 
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
-    console.error(`[AzureFunctions] Error calling ${endpoint}:`, error);
+    // 401 오류는 예상된 동작이므로 콘솔에 로그하지 않음
+    const is401 = error instanceof Error && error.message.includes('401');
+    if (!is401) {
+      console.error(`[AzureFunctions] Error calling ${endpoint}:`, error);
+    }
+
     return {
       data: null,
       error: error instanceof Error ? error : new Error('Unknown error'),

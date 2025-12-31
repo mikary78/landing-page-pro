@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Decoder</title>
+    <style>
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 {
+            color: #4ec9b0;
+        }
+        .section {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .label {
+            color: #569cd6;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        pre {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .important {
+            color: #4ec9b0;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .error {
+            color: #f48771;
+        }
+        .success {
+            color: #4ec9b0;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 JWT Token Decoder</h1>
+
+    <div class="section">
+        <div class="label">Step 1: Extract Token from localStorage</div>
+        <button onclick="extractToken()">Extract Token from localStorage</button>
+        <button onclick="copyConsoleLog()">Copy Console Log Code</button>
+        <div id="token-output"></div>
+    </div>
+
+    <div class="section">
+        <div class="label">Step 2: Or Paste Token Manually</div>
+        <textarea id="manual-token" placeholder="Paste your JWT token here..."></textarea>
+        <button onclick="decodeManualToken()">Decode Manual Token</button>
+    </div>
+
+    <div class="section">
+        <div class="label">Decoded Token Information</div>
+        <div id="decoded-output"></div>
+    </div>
+
+    <script>
+        function extractToken() {
+            try {
+                // MSAL stores tokens in localStorage with specific patterns
+                const allKeys = Object.keys(localStorage);
+
+                // Look for access token keys
+                const tokenKeys = allKeys.filter(key =>
+                    key.includes('accesstoken') ||
+                    key.includes('access-token') ||
+                    key.includes('idtoken')
+                );
+
+                console.log('[Token Decoder] Found token keys:', tokenKeys);
+
+                if (tokenKeys.length === 0) {
+                    document.getElementById('token-output').innerHTML =
+                        '<pre class="error">No tokens found in localStorage. Please login first.</pre>';
+                    return;
+                }
+
+                // Try to extract and decode each token
+                let foundValidToken = false;
+                for (const key of tokenKeys) {
+                    try {
+                        const value = localStorage.getItem(key);
+                        const data = JSON.parse(value);
+
+                        // MSAL stores tokens in different formats
+                        let token = data.secret || data.accessToken || data;
+
+                        if (typeof token === 'string' && token.split('.').length === 3) {
+                            console.log('[Token Decoder] Found valid JWT in key:', key);
+                            console.log('[Token Decoder] Token:', token);
+
+                            document.getElementById('token-output').innerHTML =
+                                `<pre class="success">✅ Token found in: ${key}\n\nToken (first 100 chars):\n${token.substring(0, 100)}...</pre>`;
+
+                            decodeToken(token);
+                            foundValidToken = true;
+                            break;
+                        }
+                    } catch (e) {
+                        console.log('[Token Decoder] Error parsing key:', key, e);
+                    }
+                }
+
+                if (!foundValidToken) {
+                    document.getElementById('token-output').innerHTML =
+                        '<pre class="error">Found token keys but could not extract valid JWT. Check console for details.</pre>';
+                }
+            } catch (error) {
+                document.getElementById('token-output').innerHTML =
+                    `<pre class="error">Error: ${error.message}</pre>`;
+                console.error('[Token Decoder] Error:', error);
+            }
+        }
+
+        function decodeManualToken() {
+            const token = document.getElementById('manual-token').value.trim();
+            if (!token) {
+                alert('Please paste a token first');
+                return;
+            }
+            decodeToken(token);
+        }
+
+        function decodeToken(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format. Expected 3 parts separated by dots.');
+                }
+
+                // Decode header
+                const header = JSON.parse(atob(parts[0]));
+
+                // Decode payload
+                const payload = JSON.parse(atob(parts[1]));
+
+                // Check important claims
+                const audience = payload.aud;
+                const expectedAudience = 'api://234895ba-cc32-4306-a28b-e287742f8e4e';
+                const audienceMatch = audience === expectedAudience;
+
+                const issuer = payload.iss;
+                const expectedIssuer = 'https://login.microsoftonline.com/f9230b9b-e666-42ce-83be-aa6deb0f78b4/v2.0';
+                const issuerMatch = issuer === expectedIssuer;
+
+                const now = Math.floor(Date.now() / 1000);
+                const isExpired = payload.exp < now;
+
+                let output = `
+<div class="section">
+    <div class="label">Token Header</div>
+    <pre>${JSON.stringify(header, null, 2)}</pre>
+</div>
+
+<div class="section">
+    <div class="label">Token Payload</div>
+    <pre>${JSON.stringify(payload, null, 2)}</pre>
+</div>
+
+<div class="section">
+    <div class="label">🎯 Critical Claims Verification</div>
+    <pre>
+<span class="important">Audience (aud):</span> ${audience}
+<span class="${audienceMatch ? 'success' : 'error'}">${audienceMatch ? '✅ MATCHES' : '❌ MISMATCH'}</span> expected: ${expectedAudience}
+
+<span class="important">Issuer (iss):</span> ${issuer}
+<span class="${issuerMatch ? 'success' : 'error'}">${issuerMatch ? '✅ MATCHES' : '❌ MISMATCH'}</span> expected: ${expectedIssuer}
+
+<span class="important">Expiration:</span> ${new Date(payload.exp * 1000).toLocaleString()}
+<span class="${isExpired ? 'error' : 'success'}">${isExpired ? '❌ EXPIRED' : '✅ VALID'}</span>
+
+<span class="important">Issued At:</span> ${new Date(payload.iat * 1000).toLocaleString()}
+<span class="important">Not Before:</span> ${new Date(payload.nbf * 1000).toLocaleString()}
+
+<span class="important">User ID (oid):</span> ${payload.oid || 'N/A'}
+<span class="important">Email:</span> ${payload.email || payload.preferred_username || 'N/A'}
+<span class="important">Name:</span> ${payload.name || 'N/A'}
+
+<span class="important">Scopes (scp):</span> ${payload.scp || 'N/A'}
+    </pre>
+</div>
+
+<div class="section">
+    <div class="label">🔍 Diagnosis</div>
+    <pre>${getDiagnosis(audienceMatch, issuerMatch, isExpired)}</pre>
+</div>
+                `;
+
+                document.getElementById('decoded-output').innerHTML = output;
+
+                // Log to console as well
+                console.log('========================================');
+                console.log('JWT Token Decoded');
+                console.log('========================================');
+                console.log('Header:', header);
+                console.log('Payload:', payload);
+                console.log('Audience Match:', audienceMatch);
+                console.log('Issuer Match:', issuerMatch);
+                console.log('Expired:', isExpired);
+                console.log('========================================');
+
+            } catch (error) {
+                document.getElementById('decoded-output').innerHTML =
+                    `<pre class="error">❌ Error decoding token: ${error.message}</pre>`;
+                console.error('[Token Decoder] Decode error:', error);
+            }
+        }
+
+        function getDiagnosis(audienceMatch, issuerMatch, isExpired) {
+            if (isExpired) {
+                return '❌ TOKEN EXPIRED\nThe token has expired. Please login again to get a fresh token.';
+            }
+            if (!audienceMatch) {
+                return `❌ AUDIENCE MISMATCH - This is likely the cause of 401 errors!
+
+The token's audience (aud) claim does not match what Azure Functions expects.
+
+🔧 Fix options:
+1. Update Azure App Registration "Expose an API" settings to use the correct Application ID URI
+2. Update Azure Functions auth middleware to accept the actual audience value
+3. Update frontend loginRequest scopes to request the correct audience`;
+            }
+            if (!issuerMatch) {
+                return '❌ ISSUER MISMATCH\nThe token issuer does not match. Check ENTRA_TENANT_ID configuration.';
+            }
+            return '✅ ALL CHECKS PASSED\nThe token appears valid. If you still get 401 errors, check:\n- Azure Functions ENTRA_CLIENT_ID environment variable\n- Network connectivity\n- JWKS key retrieval';
+        }
+
+        function copyConsoleLog() {
+            const code = `// Run this in your app's console (F12 → Console)
+const allKeys = Object.keys(localStorage);
+const tokenKeys = allKeys.filter(key => key.includes('accesstoken'));
+console.log('Token keys:', tokenKeys);
+if (tokenKeys.length > 0) {
+    const tokenData = JSON.parse(localStorage.getItem(tokenKeys[0]));
+    const token = tokenData.secret || tokenData.accessToken;
+    console.log('Full token:', token);
+
+    // Decode
+    const parts = token.split('.');
+    const payload = JSON.parse(atob(parts[1]));
+    console.log('Decoded payload:', payload);
+    console.log('Audience (aud):', payload.aud);
+}`;
+
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copied! Paste it in your browser console (F12 → Console)');
+            });
+        }
+
+        // Auto-extract on page load
+        window.addEventListener('load', () => {
+            console.log('[Token Decoder] Page loaded. Ready to extract token.');
+        });
+    </script>
+</body>
+</html>

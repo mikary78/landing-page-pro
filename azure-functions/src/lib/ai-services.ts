@@ -19,7 +19,7 @@ export async function generateWithGemini(
   prompt: string,
   systemPrompt?: string
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n---\n\n${prompt}` : prompt;
 
@@ -82,6 +82,8 @@ export async function generateWithChatGPT(
 
 /**
  * Generate content with specified AI model
+ * NOTE: Gemini and Claude are temporarily disabled. Only ChatGPT is active.
+ * To re-enable: uncomment the respective case statements below
  */
 export async function generateContent(
   aiModel: 'gemini' | 'claude' | 'chatgpt',
@@ -89,12 +91,25 @@ export async function generateContent(
   systemPrompt?: string
 ): Promise<string> {
   switch (aiModel) {
+    // TEMPORARILY DISABLED - Gemini
+    // To re-enable: uncomment the lines below and ensure GEMINI_API_KEY is set
+    // case 'gemini':
+    //   return await generateWithGemini(prompt, systemPrompt);
+
+    // TEMPORARILY DISABLED - Claude
+    // To re-enable: uncomment the lines below and ensure ANTHROPIC_API_KEY is set
+    // case 'claude':
+    //   return await generateWithClaude(prompt, systemPrompt);
+
     case 'gemini':
-      return await generateWithGemini(prompt, systemPrompt);
     case 'claude':
-      return await generateWithClaude(prompt, systemPrompt);
+      // Fallback to ChatGPT when Gemini or Claude is requested but disabled
+      console.warn(`[AI] ${aiModel} is temporarily disabled, falling back to ChatGPT`);
+      return await generateWithChatGPT(prompt, systemPrompt);
+
     case 'chatgpt':
       return await generateWithChatGPT(prompt, systemPrompt);
+
     default:
       throw new Error(`Unsupported AI model: ${aiModel}`);
   }

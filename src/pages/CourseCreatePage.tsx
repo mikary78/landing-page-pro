@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,40 +46,26 @@ const CourseCreatePage = () => {
 
     setLoading(true);
     try {
-      // profiles 테이블에 프로필이 없으면 생성 (에러 무시 - 이미 존재할 수 있음)
-      // handle_new_user 트리거가 있지만, 기존 사용자의 경우 프로필이 없을 수 있음
-      await supabase
-        .from("profiles")
-        .upsert({
-          user_id: user.id,
-          display_name: user.email?.split('@')[0] || 'User',
-        }, {
-          onConflict: 'user_id',
-        })
-        .then(({ error }) => {
-          if (error && error.code !== '23505') { // 23505는 중복 키 에러 (무시 가능)
-            console.warn("Profile upsert warning:", error);
-          }
-        });
-
-      // courses 테이블에 코스 생성
-      // owner_id는 profiles.user_id를 참조하므로 user.id를 사용
-      const { data: course, error } = await supabase
-        .from("courses")
-        .insert({
-          owner_id: user.id, // profiles.user_id와 동일한 값 (auth.users.id)
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      
+      // 코스 생성
+      const { data: courseData, error: courseError } = await callAzureFunctionDirect<{ success: boolean; course: any }>(
+        '/api/createCourse',
+        'POST',
+        {
           title: formData.title,
           description: formData.description || null,
           level: formData.level || null,
-          target_audience: formData.target_audience || null,
-          total_duration: formData.total_duration || null,
-          status: "draft",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+          targetAudience: formData.target_audience || null,
+          totalDuration: formData.total_duration || null,
+        }
+      );
+      
+      if (courseError || !courseData?.success || !courseData.course) {
+        throw courseError || new Error('Failed to create course');
+      }
+      
+      const course = courseData.course;
       toast.success("코스가 성공적으로 생성되었습니다.");
       navigate(`/courses/${course.id}/builder`);
     } catch (error) {

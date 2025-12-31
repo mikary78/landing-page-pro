@@ -1,0 +1,14 @@
+{
+  "oauth2PermissionScopes": [
+    {
+      "adminConsentDescription": "Allow the application to access Azure Functions on behalf of the signed-in user.",
+      "adminConsentDisplayName": "Access Azure Functions",
+      "id": "0d10d655-bce2-40ab-9509-387d6b8f2910",
+      "isEnabled": true,
+      "type": "User",
+      "userConsentDescription": "Allow the application to access Azure Functions on your behalf.",
+      "userConsentDisplayName": "Access Azure Functions",
+      "value": "access_as_user"
+    }
+  ]
+}
