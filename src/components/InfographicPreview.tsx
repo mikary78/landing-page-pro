@@ -493,6 +493,7 @@ const CodeViewModal = ({
             onChange={(e) => onCodeChange(e.target.value)}
             className="w-full h-full font-mono text-sm bg-slate-900 text-slate-100 p-4 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             spellCheck={false}
+            aria-label="HTML 코드 편집기"
           />
         </div>
 

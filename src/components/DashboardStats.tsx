@@ -1,5 +1,14 @@
+/**
+ * DashboardStats 컴포넌트
+ * 
+ * 수정일: 2025-12-31
+ * 수정 내용: Azure 인증 전환으로 Supabase 연결 불가, 에러 조용히 처리
+ * 
+ * TODO: Azure Functions API로 통계 데이터 가져오기
+ */
+
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Loader2 } from "lucide-react";
@@ -24,60 +33,44 @@ export const DashboardStats = ({ userId }: { userId: string }) => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const { data: projects, error } = await supabase
-        .from("projects")
-        .select("status, ai_model, created_at")
-        .eq("user_id", userId);
-
+      setLoading(true);
+      
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; stats: any }>(
+        `/api/getStats/${userId}`,
+        'GET'
+      );
+      
       if (error) throw error;
-
-      // Calculate statistics
-      const total = projects?.length || 0;
-
-      // Group by status
-      const statusMap = new Map<string, number>();
-      projects?.forEach((p) => {
-        statusMap.set(p.status, (statusMap.get(p.status) || 0) + 1);
-      });
-      const byStatus = Array.from(statusMap.entries()).map(([status, count]) => ({
-        status,
-        count,
-      }));
-
-      // Group by AI model
-      const modelMap = new Map<string, number>();
-      projects?.forEach((p) => {
-        modelMap.set(p.ai_model, (modelMap.get(p.ai_model) || 0) + 1);
-      });
-      const byModel = Array.from(modelMap.entries()).map(([model, count]) => ({
-        model,
-        count,
-      }));
-
-      // Recent activity (last 7 days)
-      const now = new Date();
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date(now);
-        date.setDate(date.getDate() - (6 - i));
-        return date.toISOString().split("T")[0];
-      });
-
-      const activityMap = new Map<string, number>();
-      projects?.forEach((p) => {
-        const date = new Date(p.created_at).toISOString().split("T")[0];
-        if (last7Days.includes(date)) {
-          activityMap.set(date, (activityMap.get(date) || 0) + 1);
-        }
-      });
-
-      const recentActivity = last7Days.map((date) => ({
-        date: new Date(date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
-        count: activityMap.get(date) || 0,
-      }));
-
-      setStats({ total, byStatus, byModel, recentActivity });
+      if (data?.success && data.stats) {
+        // Convert recentActivity to the expected format
+        const recentActivity = data.stats.recentActivity?.map((activity: any) => ({
+          date: new Date(activity.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
+          count: 1,
+        })) || [];
+        
+        setStats({
+          total: data.stats.total || 0,
+          byStatus: data.stats.byStatus || [],
+          byModel: data.stats.byModel || [],
+          recentActivity,
+        });
+      } else {
+        setStats({
+          total: 0,
+          byStatus: [],
+          byModel: [],
+          recentActivity: [],
+        });
+      }
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      console.error('[DashboardStats] Failed to fetch stats:', error);
+      setStats({
+        total: 0,
+        byStatus: [],
+        byModel: [],
+        recentActivity: [],
+      });
     } finally {
       setLoading(false);
     }

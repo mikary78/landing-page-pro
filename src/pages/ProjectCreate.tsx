@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { processDocument } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import BriefWizard, { BriefData } from "@/components/BriefWizard";
@@ -9,9 +9,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, FileText, Plus } from "lucide-react";
-import { Tables } from "@/integrations/supabase/types";
+// import { Tables } from "@/integrations/supabase/types";
 
-type ProjectTemplate = Tables<"project_templates">;
+// Supabase 타입 대신 직접 정의
+type ProjectTemplate = {
+  id: string;
+  user_id: string;
+  template_name: string;
+  description?: string;
+  education_duration?: string;
+  education_course?: string;
+  education_session?: number;
+  ai_model?: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const ProjectCreate = () => {
   const { user } = useAuth();
@@ -22,32 +34,32 @@ const ProjectCreate = () => {
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
 
-  const fetchTemplates = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
     
-    try {
-      setLoadingTemplates(true);
-      const { data, error } = await supabase
-        .from("project_templates")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    const fetchTemplates = async () => {
+      try {
+        setLoadingTemplates(true);
+        
+        const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; templates: ProjectTemplate[] }>('/api/getTemplates', 'GET');
+        
+        if (error) throw error;
+        if (data?.success && data.templates) {
+          setTemplates(data.templates);
+        } else {
+          setTemplates([]);
+        }
+      } catch (error) {
+        console.error('[ProjectCreate] Failed to fetch templates:', error);
+        setTemplates([]);
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
 
-      if (error) throw error;
-      setTemplates(data || []);
-    } catch (error) {
-      console.error("Error fetching templates:", error);
-      toast.error("템플릿 목록을 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoadingTemplates(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      fetchTemplates();
-    }
-  }, [fetchTemplates, user]);
+    fetchTemplates();
+  }, [user?.id]);
 
   const handleSelectTemplate = (template: ProjectTemplate | null) => {
     setSelectedTemplate(template);
@@ -76,26 +88,31 @@ const ProjectCreate = () => {
 
     setLoading(true);
     try {
-      const { data: project, error: projectError } = await supabase
-        .from("projects")
-        .insert({
-          user_id: user.id,
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { processDocument } = await import('@/lib/azureFunctions');
+      
+      // 프로젝트 생성
+      const { data: projectData, error: projectError } = await callAzureFunctionDirect<{ success: boolean; project: any }>(
+        '/api/createProject',
+        'POST',
+        {
           title: formData.title,
           description: formData.description,
-          document_content: formData.documentContent,
-          ai_model: formData.aiModel,
-          status: "processing",
-          education_duration: formData.educationDuration || null,
-          education_course: formData.educationCourse || null,
-          education_session: formData.educationSession ? parseInt(formData.educationSession) : null,
-        })
-        .select()
-        .single();
-
-      if (projectError) throw projectError;
-
-      toast.success("AI가 콘텐츠를 생성하고 있습니다.");
-
+          documentContent: formData.documentContent,
+          aiModel: formData.aiModel,
+          educationDuration: formData.educationDuration || null,
+          educationCourse: formData.educationCourse || null,
+          educationSession: formData.educationSession ? parseInt(formData.educationSession) : null,
+        }
+      );
+      
+      if (projectError || !projectData?.success || !projectData.project) {
+        throw projectError || new Error('Failed to create project');
+      }
+      
+      const project = projectData.project;
+      toast.success("프로젝트가 생성되었습니다. AI가 콘텐츠를 생성하고 있습니다.");
+      
       // Azure Function 호출 (프로젝트 생성 직후)
       try {
         const { error: functionError, data: functionData } = await processDocument({

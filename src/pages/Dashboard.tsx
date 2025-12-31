@@ -1,19 +1,60 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Dashboard 페이지
+ * 
+ * 수정일: 2025-12-31
+ * 수정 내용: Azure 인증 전환으로 Supabase 연결 불가, 에러 조용히 처리
+ * 
+ * TODO: Azure Functions API로 프로젝트/코스 목록 가져오기
+ */
+
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Header from "@/components/Header";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Plus, Loader2, Trash2, FileText, Zap, Brain, BookOpen } from "lucide-react";
 import { toast } from "sonner";
-import { Tables } from "@/integrations/supabase/types";
+// import { Tables } from "@/integrations/supabase/types";
 
-type Project = Tables<"projects">;
-type Course = Tables<"courses">;
+// Supabase 타입 대신 직접 정의
+type Project = {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  ai_model: string;
+  education_course?: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type Course = {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  level?: string;
+  total_duration?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -22,7 +63,10 @@ const Dashboard = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingCourses, setLoadingCourses] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,110 +74,130 @@ const Dashboard = () => {
     }
   }, [user, loading, navigate]);
 
-  const fetchProjects = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      setLoadingProjects(true);
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setProjects(data || []);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
-      toast.error("프로젝트 목록을 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoadingProjects(false);
-    }
-  }, [user]);
-
-  const fetchCourses = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      setLoadingCourses(true);
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setCourses(data || []);
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-      toast.error("코스 목록을 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoadingCourses(false);
-    }
-  }, [user]);
-
   useEffect(() => {
-    if (user) {
-      fetchProjects();
-      fetchCourses();
-      
-      const projectsChannel = supabase
-        .channel('projects-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'projects',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetchProjects();
-          }
-        )
-        .subscribe();
+    if (!user) return;
+    
+    // 프로젝트 목록 가져오기
+    const fetchProjects = async () => {
+      try {
+        setLoadingProjects(true);
+        
+        const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; projects: Project[] }>('/api/getProjects', 'GET');
+        
+        if (error) throw error;
+        if (data?.success && data.projects) {
+          setProjects(data.projects);
+        } else {
+          setProjects([]);
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to fetch projects:', error);
+        setProjects([]);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
 
-      const coursesChannel = supabase
-        .channel('courses-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'courses',
-            filter: `owner_id=eq.${user.id}`,
-          },
-          () => {
-            fetchCourses();
-          }
-        )
-        .subscribe();
+    // 코스 목록 가져오기
+    const fetchCourses = async () => {
+      try {
+        setLoadingCourses(true);
+        
+        const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getCourses', 'GET');
+        
+        if (error) throw error;
+        if (data?.success && data.courses) {
+          setCourses(data.courses);
+        } else {
+          setCourses([]);
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to fetch courses:', error);
+        setCourses([]);
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
 
-      return () => {
-        supabase.removeChannel(projectsChannel);
-        supabase.removeChannel(coursesChannel);
-      };
-    }
-  }, [fetchProjects, fetchCourses, user]);
+    fetchProjects();
+    fetchCourses();
+    
+    // Supabase Realtime 구독 제거 (Azure 인증 전환으로 연결 불가)
+    // TODO: Azure Functions WebSocket 또는 Polling으로 실시간 업데이트 구현
+    // 
+    // const projectsChannel = supabase
+    //   .channel('projects-changes')
+    //   .on(...)
+    //   .subscribe();
+    // 
+    // const coursesChannel = supabase
+    //   .channel('courses-changes')
+    //   .on(...)
+    //   .subscribe();
+    // 
+    // return () => {
+    //   supabase.removeChannel(projectsChannel);
+    //   supabase.removeChannel(coursesChannel);
+    // };
+  }, [user?.id]); // user?.id만 dependency로 사용하여 무한 루프 방지
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
 
     try {
-      setDeletingId(projectId);
-      const { error } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", projectId);
-
+      setDeletingProjectId(projectToDelete);
+      
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
+        `/api/deleteProject/${projectToDelete}`,
+        'DELETE'
+      );
+      
       if (error) throw error;
-
+      if (!data?.success) {
+        throw new Error(data?.message || 'Failed to delete project');
+      }
+      
+      // 로컬 상태 업데이트
+      setProjects(projects.filter(project => project.id !== projectToDelete));
       toast.success("프로젝트가 성공적으로 삭제되었습니다.");
+      setProjectToDelete(null);
     } catch (error) {
       console.error("Error deleting project:", error);
       toast.error("프로젝트 삭제 중 오류가 발생했습니다.");
     } finally {
-      setDeletingId(null);
+      setDeletingProjectId(null);
+    }
+  };
+
+  const confirmDeleteCourse = async () => {
+    if (!courseToDelete) return;
+
+    try {
+      setDeletingCourseId(courseToDelete);
+      
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
+        `/api/deleteCourse/${courseToDelete}`,
+        'DELETE'
+      );
+      
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.message || 'Failed to delete course');
+      }
+      
+      // 로컬 상태 업데이트
+      setCourses(courses.filter(course => course.id !== courseToDelete));
+      toast.success("코스가 성공적으로 삭제되었습니다.");
+      setCourseToDelete(null);
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      toast.error("코스 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingCourseId(null);
     }
   };
 
@@ -275,10 +339,10 @@ const Dashboard = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteProject(project.id)}
-                              disabled={deletingId === project.id}
+                              onClick={() => setProjectToDelete(project.id)}
+                              disabled={deletingProjectId === project.id}
                             >
-                              {deletingId === project.id ? (
+                              {deletingProjectId === project.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <Trash2 className="h-4 w-4" />
@@ -403,16 +467,33 @@ const Dashboard = () => {
                           <span className="text-sm text-muted-foreground">
                             {new Date(course.created_at).toLocaleDateString("ko-KR")}
                           </span>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/courses/${course.id}/builder`);
-                            }}
-                          >
-                            빌더 열기
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCourseToDelete(course.id);
+                              }}
+                              disabled={deletingCourseId === course.id}
+                            >
+                              {deletingCourseId === course.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/courses/${course.id}/builder`);
+                              }}
+                            >
+                              빌더 열기
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -427,6 +508,36 @@ const Dashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      <AlertDialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 프로젝트를 삭제하면 되돌릴 수 없습니다. 프로젝트와 관련된 모든 데이터가 영구적으로 삭제됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>아니오</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteProject}>예</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!courseToDelete} onOpenChange={(open) => !open && setCourseToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 코스를 삭제하면 되돌릴 수 없습니다. 코스와 관련된 모든 데이터가 영구적으로 삭제됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>아니오</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteCourse}>예</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

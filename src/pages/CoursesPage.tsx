@@ -1,22 +1,54 @@
+/**
+ * Courses 페이지
+ * 
+ * 수정일: 2025-12-31
+ * 수정 내용: Azure 인증 전환으로 Supabase 연결 불가, 에러 조용히 처리
+ * 
+ * TODO: Azure Functions API로 코스 목록 가져오기
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Header from "@/components/Header";
-import { Plus, Loader2, BookOpen } from "lucide-react";
+import { Plus, Loader2, BookOpen, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Tables } from "@/integrations/supabase/types";
+// import { Tables } from "@/integrations/supabase/types";
 
-type Course = Tables<"courses">;
+// Supabase 타입 대신 직접 정의
+type Course = {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  level?: string;
+  total_duration?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const CoursesPage = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -29,17 +61,19 @@ const CoursesPage = () => {
     
     try {
       setLoadingCourses(true);
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
-
+      
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getCourses', 'GET');
+      
       if (error) throw error;
-      setCourses(data || []);
+      if (data?.success && data.courses) {
+        setCourses(data.courses);
+      } else {
+        setCourses([]);
+      }
     } catch (error) {
-      console.error("Error fetching courses:", error);
-      toast.error("코스 목록을 불러오는 중 오류가 발생했습니다.");
+      console.error('[CoursesPage] Failed to fetch courses:', error);
+      setCourses([]);
     } finally {
       setLoadingCourses(false);
     }
@@ -48,28 +82,49 @@ const CoursesPage = () => {
   useEffect(() => {
     if (user) {
       fetchCourses();
-      
-      const channel = supabase
-        .channel('courses-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'courses',
-            filter: `owner_id=eq.${user.id}`,
-          },
-          () => {
-            fetchCourses();
-          }
-        )
-        .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      // Supabase Realtime 구독 제거 (Azure 인증 전환으로 연결 불가)
+      // TODO: Azure Functions WebSocket 또는 Polling으로 실시간 업데이트 구현
+      // 
+      // const channel = supabase
+      //   .channel('courses-changes')
+      //   .on(...)
+      //   .subscribe();
+      // 
+      // return () => {
+      //   supabase.removeChannel(channel);
+      // };
     }
   }, [fetchCourses, user]);
+
+  const confirmDeleteCourse = async () => {
+    if (!courseToDelete) return;
+
+    try {
+      setDeletingId(courseToDelete);
+      
+      const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
+        `/api/deleteCourse/${courseToDelete}`,
+        'DELETE'
+      );
+      
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.message || 'Failed to delete course');
+      }
+      
+      // 로컬 상태 업데이트
+      setCourses(courses.filter(course => course.id !== courseToDelete));
+      toast.success("코스가 성공적으로 삭제되었습니다.");
+      setCourseToDelete(null);
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      toast.error("코스 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -168,16 +223,33 @@ const CoursesPage = () => {
                     <span className="text-sm text-muted-foreground">
                       {new Date(course.created_at).toLocaleDateString("ko-KR")}
                     </span>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/courses/${course.id}/builder`);
-                      }}
-                    >
-                      빌더 열기
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCourseToDelete(course.id);
+                        }}
+                        disabled={deletingId === course.id}
+                      >
+                        {deletingId === course.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/courses/${course.id}/builder`);
+                        }}
+                      >
+                        빌더 열기
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -185,11 +257,29 @@ const CoursesPage = () => {
           </div>
         )}
       </main>
+
+      <AlertDialog open={!!courseToDelete} onOpenChange={(open) => !open && setCourseToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 코스를 삭제하면 되돌릴 수 없습니다. 코스와 관련된 모든 데이터가 영구적으로 삭제됩니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>아니오</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteCourse}>예</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
 
 export default CoursesPage;
+
+
+
 
 
 

@@ -95,6 +95,7 @@
     "lovable-tagger": "^1.1.11",
     "postcss": "^8.5.6",
     "selenium-webdriver": "^4.27.1",
+    "shx": "^0.4.0",
     "supabase": "^2.63.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
