@@ -46,7 +46,7 @@ export const useUserRole = (userId?: string): UseUserRoleResult => {
       // setRoles(data.roles || []);
       
       // 임시: 빈 배열 반환 (에러 없이 처리)
-      console.log('[useUserRole] User roles API not implemented yet, returning empty roles');
+      // User roles API 미구현 - 빈 배열 반환
       setRoles([]);
       
       // Supabase 호출 제거 (Azure 인증 전환으로 연결 불가)

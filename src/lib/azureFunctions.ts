@@ -4,48 +4,72 @@
  */
 
 import { msalInstance } from '@/components/AuthProvider';
-import { loginRequest } from '@/config/authConfig';
+import { apiRequest } from '@/config/authConfig';
 
 const AZURE_FUNCTIONS_URL = import.meta.env.VITE_AZURE_FUNCTIONS_URL || 'http://localhost:7071';
 
+// Token cache to prevent repeated token acquisition
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
+
 /**
- * Get access token from MSAL
+ * Get access token from MSAL (with caching)
  */
 async function getAccessToken(): Promise<string | null> {
   try {
+    // Check if cached token is still valid (with 5 minute buffer)
+    const now = Date.now();
+    if (cachedToken && tokenExpiry > now + 5 * 60 * 1000) {
+      return cachedToken;
+    }
+
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length === 0) {
       console.warn('[AzureFunctions] No active account');
       return null;
     }
-
-    console.log('[AzureFunctions] Acquiring token with scopes:', loginRequest.scopes);
-    const response = await msalInstance.acquireTokenSilent({
-      ...loginRequest,
-      account: accounts[0],
-    });
-
-    console.log('[AzureFunctions] Token acquired successfully');
-    console.log('[AzureFunctions] Token length:', response.accessToken.length);
-    console.log('[AzureFunctions] Full token:', response.accessToken);
-
-    // Decode and log token payload for debugging
+    
     try {
-      const parts = response.accessToken.split('.');
-      const payload = JSON.parse(atob(parts[1]));
-      console.log('[AzureFunctions] Token payload:', payload);
-      console.log('[AzureFunctions] Audience (aud):', payload.aud);
-      console.log('[AzureFunctions] Expected aud:', 'api://234895ba-cc32-4306-a28b-e287742f8e4e');
-      console.log('[AzureFunctions] Match:', payload.aud === 'api://234895ba-cc32-4306-a28b-e287742f8e4e' ? '✅' : '❌');
-    } catch (e) {
-      console.error('[AzureFunctions] Failed to decode token:', e);
-    }
+      const response = await msalInstance.acquireTokenSilent({
+        ...apiRequest,
+        account: accounts[0],
+      });
 
-    return response.accessToken;
+      // Cache the token
+      cachedToken = response.accessToken;
+      tokenExpiry = response.expiresOn?.getTime() || (now + 60 * 60 * 1000); // Default 1 hour
+      
+      return cachedToken;
+    } catch (silentError: any) {
+      // API scope가 없거나 실패하면 기본 scope로 fallback
+      try {
+        const fallbackResponse = await msalInstance.acquireTokenSilent({
+          scopes: ['openid', 'profile', 'email', 'offline_access'],
+          account: accounts[0],
+        });
+        
+        // Cache the fallback token
+        cachedToken = fallbackResponse.accessToken;
+        tokenExpiry = fallbackResponse.expiresOn?.getTime() || (now + 60 * 60 * 1000);
+        
+        return cachedToken;
+      } catch (fallbackError: any) {
+        console.error('[AzureFunctions] Failed to acquire token');
+        return null;
+      }
+    }
   } catch (error) {
     console.error('[AzureFunctions] Failed to acquire token:', error);
     return null;
   }
+}
+
+/**
+ * Clear token cache (call on logout)
+ */
+export function clearTokenCache(): void {
+  cachedToken = null;
+  tokenExpiry = 0;
 }
 
 /**
@@ -58,7 +82,6 @@ async function callAzureFunction<T = any>(
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
     const accessToken = await getAccessToken();
-    console.log('[AzureFunctions] Access token for request:', accessToken ? 'PRESENT' : 'NULL');
 
     const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
     const headers: HeadersInit = {
@@ -67,9 +90,6 @@ async function callAzureFunction<T = any>(
 
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log('[AzureFunctions] Authorization header added');
-    } else {
-      console.warn('[AzureFunctions] No access token - request will be unauthenticated');
     }
 
     const options: RequestInit = {

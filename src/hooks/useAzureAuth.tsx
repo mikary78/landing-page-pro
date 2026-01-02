@@ -19,7 +19,7 @@ export function useAzureAuth() {
   const { instance, accounts, inProgress } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // 사용자 정보 추출
   useEffect(() => {
@@ -36,9 +36,19 @@ export function useAzureAuth() {
     } else {
       setUser(null);
     }
+  }, [isAuthenticated, accounts]);
 
-    setLoading(inProgress !== InteractionStatus.None);
-  }, [isAuthenticated, accounts, inProgress]);
+  // 초기 로딩 상태 관리 (한 번만 변경)
+  useEffect(() => {
+    if (!initialLoadDone && inProgress === InteractionStatus.None) {
+      setInitialLoadDone(true);
+    }
+  }, [inProgress, initialLoadDone]);
+
+  // loading 상태: 초기 로딩이 완료되지 않았거나 로그인/로그아웃 중일 때 true
+  const loading = !initialLoadDone || 
+    inProgress === InteractionStatus.Login || 
+    inProgress === InteractionStatus.Logout;
 
   /**
    * 로그인 (팝업)

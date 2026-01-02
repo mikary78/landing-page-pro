@@ -83,7 +83,7 @@ const Dashboard = () => {
         setLoadingProjects(true);
         
         const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
-        const { data, error } = await callAzureFunctionDirect<{ success: boolean; projects: Project[] }>('/api/getProjects', 'GET');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; projects: Project[] }>('/api/getprojects', 'GET');
         
         if (error) throw error;
         if (data?.success && data.projects) {
@@ -105,7 +105,7 @@ const Dashboard = () => {
         setLoadingCourses(true);
         
         const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
-        const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getCourses', 'GET');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getcourses', 'GET');
         
         if (error) throw error;
         if (data?.success && data.courses) {
@@ -151,7 +151,7 @@ const Dashboard = () => {
       
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
-        `/api/deleteProject/${projectToDelete}`,
+        `/api/deleteproject/${projectToDelete}`,
         'DELETE'
       );
       
@@ -180,7 +180,7 @@ const Dashboard = () => {
       
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
-        `/api/deleteCourse/${courseToDelete}`,
+        `/api/deletecourse/${courseToDelete}`,
         'DELETE'
       );
       
