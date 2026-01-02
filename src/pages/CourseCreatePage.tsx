@@ -50,7 +50,7 @@ const CourseCreatePage = () => {
       
       // 코스 생성
       const { data: courseData, error: courseError } = await callAzureFunctionDirect<{ success: boolean; course: any }>(
-        '/api/createCourse',
+        '/api/createcourse',
         'POST',
         {
           title: formData.title,

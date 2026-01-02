@@ -42,7 +42,7 @@ const ProjectCreate = () => {
         setLoadingTemplates(true);
         
         const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
-        const { data, error } = await callAzureFunctionDirect<{ success: boolean; templates: ProjectTemplate[] }>('/api/getTemplates', 'GET');
+        const { data, error } = await callAzureFunctionDirect<{ success: boolean; templates: ProjectTemplate[] }>('/api/gettemplates', 'GET');
         
         if (error) throw error;
         if (data?.success && data.templates) {
@@ -93,7 +93,7 @@ const ProjectCreate = () => {
       
       // 프로젝트 생성
       const { data: projectData, error: projectError } = await callAzureFunctionDirect<{ success: boolean; project: any }>(
-        '/api/createProject',
+        '/api/createproject',
         'POST',
         {
           title: formData.title,

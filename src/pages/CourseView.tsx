@@ -1,6 +1,13 @@
+/**
+ * CourseView 페이지 - 공개 코스 뷰어
+ * 
+ * 수정일: 2026-01-02
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { callAzureFunctionDirect } from "@/lib/azureFunctions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,26 +51,18 @@ const CourseView = () => {
 
   const fetchCourseData = useCallback(async () => {
     try {
-      // 프로젝트 정보 가져오기 (공개 접근)
-      const { data: projectData, error: projectError } = await supabase
-        .from("projects")
-        .select("id, title, description, education_duration, education_course, education_session")
-        .eq("id", id)
-        .single();
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        project: Project;
+        stages: ProjectStage[];
+      }>(`/api/course/public/${id}`, 'GET');
 
-      if (projectError) throw projectError;
-      setProject(projectData);
-
-      // 단계별 콘텐츠 가져오기
-      const { data: stagesData, error: stagesError } = await supabase
-        .from("project_stages")
-        .select("*")
-        .eq("project_id", id)
-        .eq("status", "completed")
-        .order("stage_order", { ascending: true });
-
-      if (stagesError) throw stagesError;
-      setStages(stagesData || []);
+      if (error) throw error;
+      
+      if (data?.success) {
+        setProject(data.project);
+        setStages(data.stages || []);
+      }
     } catch (error) {
       console.error("Error fetching course data:", error);
     } finally {

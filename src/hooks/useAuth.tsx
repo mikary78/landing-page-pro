@@ -9,7 +9,7 @@
  * 변경 이유: 두 개의 독립적인 인증 시스템 (Supabase, Azure) 혼재로 인한 문제 해결
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 import { useAzureAuth, User as AzureUser } from '@/hooks/useAzureAuth';
@@ -51,11 +51,11 @@ export const useAuth = () => {
   
   const navigate = useNavigate();
   
-  // 변환된 사용자 정보
-  const user = convertAzureUser(azureUser);
+  // 변환된 사용자 정보 (useMemo로 캐싱하여 무한 루프 방지)
+  const user = useMemo(() => convertAzureUser(azureUser), [azureUser]);
   
   // 세션 정보 (Azure는 별도 세션 객체가 없으므로 인증 상태로 대체)
-  const session = isAuthenticated ? { user } : null;
+  const session = useMemo(() => isAuthenticated ? { user } : null, [isAuthenticated, user]);
 
   /**
    * 회원가입

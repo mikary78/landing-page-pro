@@ -63,7 +63,7 @@ const CoursesPage = () => {
       setLoadingCourses(true);
       
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
-      const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getCourses', 'GET');
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getcourses', 'GET');
       
       if (error) throw error;
       if (data?.success && data.courses) {
@@ -105,7 +105,7 @@ const CoursesPage = () => {
       
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
-        `/api/deleteCourse/${courseToDelete}`,
+        `/api/deletecourse/${courseToDelete}`,
         'DELETE'
       );
       

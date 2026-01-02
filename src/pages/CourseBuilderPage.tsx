@@ -1,8 +1,14 @@
+/**
+ * CourseBuilderPage
+ * 
+ * 수정일: 2025-12-31
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useParams, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { generateCurriculum } from "@/lib/azureFunctions";
+import { generateCurriculum, callAzureFunctionDirect } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft, Sparkles } from "lucide-react";
@@ -14,11 +20,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tables } from "@/integrations/supabase/types";
 import CurriculumTreePane from "@/components/course/CurriculumTreePane";
 import LessonDetailPane from "@/components/course/LessonDetailPane";
 
-type Course = Tables<"courses">;
+// Course 타입 정의 (Supabase 타입 대신)
+type Course = {
+  id: string;
+  title: string;
+  description?: string;
+  level?: string;
+  target_audience?: string;
+  total_duration?: string;
+  status: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const CourseBuilderPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,15 +58,19 @@ const CourseBuilderPage = () => {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("id", id)
-        .eq("owner_id", user.id)
-        .single();
+      
+      // Azure Functions API로 코스 정보 가져오기
+      const { data, error } = await callAzureFunctionDirect<{ success: boolean; course: Course }>(
+        `/api/getcourse/${id}`,
+        'GET'
+      );
 
       if (error) throw error;
-      setCourse(data);
+      if (!data?.success || !data.course) {
+        throw new Error('Course not found');
+      }
+      
+      setCourse(data.course);
     } catch (error) {
       console.error("Error fetching course:", error);
       toast.error("코스를 불러오는 중 오류가 발생했습니다.");
@@ -71,31 +92,13 @@ const CourseBuilderPage = () => {
     try {
       setGeneratingCurriculum(true);
 
-      // 기존 모듈이 있는지 확인
-      const { data: existingModules, error: checkError } = await supabase
-        .from("course_modules")
-        .select("id")
-        .eq("course_id", course.id)
-        .limit(1);
-
-      if (checkError) throw checkError;
-
-      if (existingModules && existingModules.length > 0) {
-        const confirmed = window.confirm(
-          "이미 모듈이 존재합니다. 기존 모듈을 삭제하고 새로 생성하시겠습니까?"
-        );
-        if (!confirmed) {
-          setGeneratingCurriculum(false);
-          return;
-        }
-
-        // 기존 모듈 삭제 (CASCADE로 레슨도 함께 삭제됨)
-        const { error: deleteError } = await supabase
-          .from("course_modules")
-          .delete()
-          .eq("course_id", course.id);
-
-        if (deleteError) throw deleteError;
+      // 기존 모듈 확인 - 사용자에게 확인
+      const confirmed = window.confirm(
+        "AI로 커리큘럼을 생성하시겠습니까? 기존 모듈이 있다면 새로운 모듈이 추가됩니다."
+      );
+      if (!confirmed) {
+        setGeneratingCurriculum(false);
+        return;
       }
 
       toast.info("AI가 커리큘럼을 생성하고 있습니다...");
