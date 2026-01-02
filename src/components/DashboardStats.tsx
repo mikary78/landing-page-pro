@@ -37,7 +37,7 @@ export const DashboardStats = ({ userId }: { userId: string }) => {
       
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; stats: any }>(
-        `/api/getStats/${userId}`,
+        `/api/getstats/${userId}`,
         'GET'
       );
       

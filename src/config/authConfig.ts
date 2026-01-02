@@ -81,10 +81,26 @@ export const entraIdPolicies = {
 
 /**
  * Scopes for API requests
- * External ID 기본 scopes
+ * External ID 기본 scopes + API scope
  */
 export const loginRequest = {
   scopes: ['openid', 'profile', 'email', 'offline_access'],
+};
+
+/**
+ * API scope for Azure Functions
+ * Application ID URI 형식: api://{client-id} 또는 https://{tenant}.onmicrosoft.com/api
+ * 
+ * Azure Portal에 등록된 scope: access_as_user
+ * Scope URI: api://{client-id}/access_as_user
+ */
+const apiScope = `api://${clientId}/access_as_user`;
+
+/**
+ * Scopes for Azure Functions API calls
+ */
+export const apiRequest = {
+  scopes: [apiScope],
 };
 
 /**
@@ -100,7 +116,7 @@ export const tokenRequest = {
  */
 export const apiConfig = {
   uri: import.meta.env.VITE_AZURE_FUNCTIONS_URL || 'https://func-landing-page-pro.azurewebsites.net',
-  scopes: ['openid', 'profile', 'email'],
+  scopes: [apiScope],
 };
 
 /**

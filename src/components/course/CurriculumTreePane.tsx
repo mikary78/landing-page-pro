@@ -1,15 +1,45 @@
+/**
+ * CurriculumTreePane 컴포넌트
+ * 
+ * 수정일: 2026-01-02
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { callAzureFunctionDirect } from "@/lib/azureFunctions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Loader2, BookOpen, FileText, Trash2, Edit2, ChevronUp, ChevronDown, Check, X } from "lucide-react";
+import { Plus, Loader2, BookOpen, FileText, Edit2, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Tables } from "@/integrations/supabase/types";
 
-type CourseModule = Tables<"course_modules">;
-type Lesson = Tables<"lessons">;
+// 타입 정의 (Supabase 타입 대신 직접 정의)
+interface CourseModule {
+  id: string;
+  course_id: string;
+  title: string;
+  description?: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Lesson {
+  id: string;
+  module_id: string;
+  title: string;
+  learning_objectives?: string;
+  project_id?: string;
+  order_index: number;
+  selected_ai_model?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ModuleWithLessons extends CourseModule {
+  lessons: Lesson[];
+}
 
 interface CurriculumTreePaneProps {
   courseId: string;
@@ -22,7 +52,7 @@ const CurriculumTreePane = ({
   selectedLessonId,
   onLessonSelect,
 }: CurriculumTreePaneProps) => {
-  const [modules, setModules] = useState<(CourseModule & { lessons: Lesson[] })[]>([]);
+  const [modules, setModules] = useState<ModuleWithLessons[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
@@ -33,34 +63,19 @@ const CurriculumTreePane = ({
     try {
       setLoading(true);
       
-      // 모듈 조회
-      const { data: modulesData, error: modulesError } = await supabase
-        .from("course_modules")
-        .select("*")
-        .eq("course_id", courseId)
-        .order("order_index", { ascending: true });
+      // Azure Functions API로 모듈+레슨 조회
+      const { data, error } = await callAzureFunctionDirect<{ 
+        success: boolean; 
+        modules: ModuleWithLessons[] 
+      }>(`/api/getmodules/${courseId}`, 'GET');
 
-      if (modulesError) throw modulesError;
-
-      // 각 모듈의 레슨 조회
-      const modulesWithLessons = await Promise.all(
-        (modulesData || []).map(async (module) => {
-          const { data: lessonsData, error: lessonsError } = await supabase
-            .from("lessons")
-            .select("*")
-            .eq("module_id", module.id)
-            .order("order_index", { ascending: true });
-
-          if (lessonsError) throw lessonsError;
-
-          return {
-            ...module,
-            lessons: lessonsData || [],
-          };
-        })
-      );
-
-      setModules(modulesWithLessons);
+      if (error) throw error;
+      
+      if (data?.success && data.modules) {
+        setModules(data.modules);
+      } else {
+        setModules([]);
+      }
     } catch (error) {
       console.error("Error fetching modules:", error);
       toast.error("커리큘럼을 불러오는 중 오류가 발생했습니다.");
@@ -75,26 +90,17 @@ const CurriculumTreePane = ({
 
   const handleAddModule = async () => {
     try {
-      const { data: modulesData } = await supabase
-        .from("course_modules")
-        .select("order_index")
-        .eq("course_id", courseId)
-        .order("order_index", { ascending: false })
-        .limit(1);
-
-      const nextOrderIndex = modulesData && modulesData.length > 0
-        ? modulesData[0].order_index + 1
-        : 1;
-
-      const { error } = await supabase
-        .from("course_modules")
-        .insert({
-          course_id: courseId,
-          title: `새 모듈 ${nextOrderIndex}`,
-          order_index: nextOrderIndex,
-        });
+      const { data, error } = await callAzureFunctionDirect<{ 
+        success: boolean; 
+        module: ModuleWithLessons 
+      }>('/api/createmodule', 'POST', { courseId });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error('Failed to create module');
+      }
+      
       toast.success("모듈이 추가되었습니다.");
       fetchModules();
     } catch (error) {
@@ -105,22 +111,17 @@ const CurriculumTreePane = ({
 
   const handleAddLesson = async (moduleId: string) => {
     try {
-      const module = modules.find((m) => m.id === moduleId);
-      if (!module) return;
-
-      const nextOrderIndex = module.lessons.length > 0
-        ? Math.max(...module.lessons.map((l) => l.order_index)) + 1
-        : 1;
-
-      const { error } = await supabase
-        .from("lessons")
-        .insert({
-          module_id: moduleId,
-          title: `새 레슨 ${nextOrderIndex}`,
-          order_index: nextOrderIndex,
-        });
+      const { data, error } = await callAzureFunctionDirect<{ 
+        success: boolean; 
+        lesson: Lesson 
+      }>('/api/createlesson', 'POST', { moduleId });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error('Failed to create lesson');
+      }
+      
       toast.success("레슨이 추가되었습니다.");
       fetchModules();
     } catch (error) {
@@ -136,12 +137,17 @@ const CurriculumTreePane = ({
     }
 
     try {
-      const { error } = await supabase
-        .from("course_modules")
-        .update({ title: editModuleTitle.trim() })
-        .eq("id", moduleId);
+      const { data, error } = await callAzureFunctionDirect<{ 
+        success: boolean; 
+        module: CourseModule 
+      }>(`/api/updatemodule/${moduleId}`, 'PUT', { title: editModuleTitle.trim() });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error('Failed to update module');
+      }
+      
       toast.success("모듈 제목이 수정되었습니다.");
       setEditingModuleId(null);
       setEditModuleTitle("");
@@ -159,12 +165,17 @@ const CurriculumTreePane = ({
     }
 
     try {
-      const { error } = await supabase
-        .from("lessons")
-        .update({ title: editLessonTitle.trim() })
-        .eq("id", lessonId);
+      const { data, error } = await callAzureFunctionDirect<{ 
+        success: boolean; 
+        lesson: Lesson 
+      }>(`/api/updatelesson/${lessonId}`, 'PUT', { title: editLessonTitle.trim() });
 
       if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error('Failed to update lesson');
+      }
+      
       toast.success("레슨 제목이 수정되었습니다.");
       setEditingLessonId(null);
       setEditLessonTitle("");
@@ -393,5 +404,3 @@ const CurriculumTreePane = ({
 };
 
 export default CurriculumTreePane;
-
-

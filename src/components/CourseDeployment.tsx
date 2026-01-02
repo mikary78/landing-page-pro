@@ -1,5 +1,12 @@
+/**
+ * CourseDeployment 컴포넌트
+ * 
+ * 수정일: 2026-01-02
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { callAzureFunctionDirect } from "@/lib/azureFunctions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,16 +46,13 @@ const CourseDeployment = ({ projectId, userId, projectTitle }: CourseDeploymentP
 
   const fetchDeployment = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("course_deployments")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        deployment: Deployment | null;
+      }>(`/api/deployment/${projectId}`, 'GET');
 
       if (error) throw error;
-      setDeployment(data);
+      setDeployment(data?.deployment || null);
     } catch (error) {
       console.error("Error fetching deployment:", error);
     } finally {
@@ -64,24 +68,18 @@ const CourseDeployment = ({ projectId, userId, projectTitle }: CourseDeploymentP
     setDeploying(true);
     try {
       const deploymentUrl = `${window.location.origin}/course/${projectId}`;
-      const newVersion = deployment ? deployment.version + 1 : 1;
 
-      const { data, error } = await supabase
-        .from("course_deployments")
-        .insert({
-          project_id: projectId,
-          user_id: userId,
-          deployment_url: deploymentUrl,
-          deployment_status: "published",
-          version: newVersion,
-          published_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        deployment: Deployment;
+      }>('/api/deployment', 'POST', {
+        projectId,
+        deploymentUrl,
+      });
 
       if (error) throw error;
 
-      setDeployment(data);
+      setDeployment(data?.deployment || null);
       toast.success("교육 과정이 성공적으로 배포되었습니다!");
     } catch (error) {
       console.error("Error deploying:", error);

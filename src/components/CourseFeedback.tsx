@@ -1,5 +1,12 @@
+/**
+ * CourseFeedback 컴포넌트
+ * 
+ * 수정일: 2026-01-02
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { callAzureFunctionDirect } from "@/lib/azureFunctions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,16 +61,15 @@ const CourseFeedback = ({ projectId, isOwner = true }: CourseFeedbackProps) => {
 
   const fetchFeedbacks = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("course_feedbacks")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        feedbacks: Feedback[];
+      }>(`/api/feedback/${projectId}`, 'GET');
 
       if (error) throw error;
 
-      setFeedbacks(data || []);
-      calculateStats(data || []);
+      setFeedbacks(data?.feedbacks || []);
+      calculateStats(data?.feedbacks || []);
     } catch (error) {
       console.error("Error fetching feedbacks:", error);
     } finally {
@@ -108,15 +114,13 @@ const CourseFeedback = ({ projectId, isOwner = true }: CourseFeedbackProps) => {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from("course_feedbacks")
-        .insert({
-          project_id: projectId,
-          user_email: formData.email || null,
-          rating: formData.rating,
-          comment: formData.comment || null,
-          feedback_type: "general",
-        });
+      const { error } = await callAzureFunctionDirect('/api/feedback', 'POST', {
+        projectId,
+        userEmail: formData.email || null,
+        rating: formData.rating,
+        comment: formData.comment || null,
+        feedbackType: "general",
+      });
 
       if (error) throw error;
 

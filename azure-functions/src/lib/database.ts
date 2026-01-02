@@ -18,14 +18,27 @@ export function getPool(): Pool {
       database: process.env.AZURE_POSTGRES_DATABASE,
       user: process.env.AZURE_POSTGRES_USER,
       password: process.env.AZURE_POSTGRES_PASSWORD,
-      ssl: process.env.AZURE_POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      // Azure PostgreSQL requires SSL
+      ssl: { rejectUnauthorized: false },
+      // Azure Functions 환경에 맞게 연결 풀 최적화
+      // 서버리스 환경에서는 연결 수를 최소화해야 함
+      max: 3, // 최대 연결 수 줄임 (20 → 3)
+      min: 0, // 유휴 연결 유지하지 않음
+      idleTimeoutMillis: 10000, // 유휴 연결 10초 후 종료
+      connectionTimeoutMillis: 5000, // 연결 타임아웃 5초
+      allowExitOnIdle: true, // 유휴 시 프로세스 종료 허용
     });
 
     pool.on('error', (err) => {
       console.error('[DB] Unexpected error on idle client:', err);
+    });
+    
+    pool.on('connect', () => {
+      console.log('[DB] New client connected');
+    });
+    
+    pool.on('remove', () => {
+      console.log('[DB] Client removed from pool');
     });
   }
 

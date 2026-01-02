@@ -60,8 +60,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // 이벤트 리스너 등록 (한 번만)
       msalInstance.addEventCallback((event: EventMessage) => {
-        console.log('[AuthProvider] MSAL Event:', event.eventType);
-
+        // 로그인/로그아웃 이벤트만 로깅 (토큰 획득은 무시)
         if (event.eventType === EventType.LOGIN_SUCCESS && event.payload) {
           const payload = event.payload as AuthenticationResult;
           const account = payload.account;
@@ -75,13 +74,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (event.eventType === EventType.LOGIN_FAILURE) {
           console.error('[Auth] Login failure:', event.error);
-          // MSAL 에러 상세 정보 로깅
-          if (event.error) {
-            const error = event.error as any;
-            console.error('[Auth] Error code:', error.errorCode);
-            console.error('[Auth] Error message:', error.errorMessage);
-            console.error('[Auth] Error details:', error);
-          }
         }
       });
 
@@ -104,6 +96,5 @@ export function AuthProvider({ children }: AuthProviderProps) {
     );
   }
 
-  console.log('[AuthProvider] MSAL initialized, rendering children');
   return <MsalProvider instance={msalInstance}>{children}</MsalProvider>;
 }

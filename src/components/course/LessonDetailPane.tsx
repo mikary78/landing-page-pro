@@ -1,5 +1,12 @@
+/**
+ * LessonDetailPane 컴포넌트
+ * 
+ * 수정일: 2026-01-02
+ * 수정 내용: Supabase → Azure Functions API 마이그레이션
+ */
+
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { callAzureFunctionDirect, processDocument } from "@/lib/azureFunctions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,12 +14,52 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Sparkles, Bot } from "lucide-react";
 import { toast } from "sonner";
-import { Tables } from "@/integrations/supabase/types";
 
-type Lesson = Tables<"lessons">;
-type Project = Tables<"projects">;
-type ProjectStage = Tables<"project_stages">;
-type ProjectAiResult = Tables<"project_ai_results">;
+// 타입 정의 (Supabase 타입 대신 직접 정의)
+interface Lesson {
+  id: string;
+  module_id: string;
+  title: string;
+  learning_objectives?: string;
+  project_id?: string;
+  order_index: number;
+  selected_ai_model?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Project {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  document_content?: string;
+  ai_model: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProjectStage {
+  id: string;
+  project_id: string;
+  ai_model: string;
+  stage_order: number;
+  content?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AiResult {
+  id: string;
+  project_id: string;
+  ai_model: string;
+  status: string;
+  generated_content?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface LessonDetailPaneProps {
   lessonId: string;
@@ -37,7 +84,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [stages, setStages] = useState<ProjectStage[]>([]);
-  const [aiResults, setAiResults] = useState<ProjectAiResult[]>([]);
+  const [aiResults, setAiResults] = useState<AiResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedAiModel, setSelectedAiModel] = useState<string>("gemini");
@@ -46,44 +93,27 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     try {
       setLoading(true);
 
-      // 레슨 정보 조회
-      const { data: lessonData, error: lessonError } = await supabase
-        .from("lessons")
-        .select("*")
-        .eq("id", lessonId)
-        .single();
+      // Azure Functions API로 레슨 상세 조회
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        lesson: Lesson;
+        project: Project | null;
+        aiResults: AiResult[];
+      }>(`/api/getlesson/${lessonId}`, 'GET');
 
-      if (lessonError) throw lessonError;
-      setLesson(lessonData);
+      if (error) throw error;
+      
+      if (!data?.success || !data.lesson) {
+        throw new Error('Lesson not found');
+      }
 
-      // project_id가 있으면 프로젝트 정보 조회
-      if (lessonData.project_id) {
-        const { data: projectData, error: projectError } = await supabase
-          .from("projects")
-          .select("*")
-          .eq("id", lessonData.project_id)
-          .single();
+      setLesson(data.lesson);
+      setProject(data.project);
+      setAiResults(data.aiResults || []);
 
-        if (projectError) throw projectError;
-        setProject(projectData);
-
-        // AI 결과 조회
-        const { data: aiResultsData, error: aiResultsError } = await supabase
-          .from("project_ai_results")
-          .select("*")
-          .eq("project_id", lessonData.project_id);
-
-        if (aiResultsError) throw aiResultsError;
-        setAiResults(aiResultsData || []);
-
-        // AI 결과가 있으면 첫 번째 모델 선택
-        if (aiResultsData && aiResultsData.length > 0 && !selectedAiModel) {
-          setSelectedAiModel(aiResultsData[0].ai_model);
-        }
-      } else {
-        setProject(null);
-        setStages([]);
-        setAiResults([]);
+      // AI 결과가 있으면 첫 번째 모델 선택
+      if (data.aiResults && data.aiResults.length > 0) {
+        setSelectedAiModel(data.aiResults[0].ai_model);
       }
     } catch (error) {
       console.error("Error fetching lesson data:", error);
@@ -91,7 +121,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     } finally {
       setLoading(false);
     }
-  }, [lessonId, selectedAiModel]);
+  }, [lessonId]);
 
   const fetchStages = useCallback(async () => {
     if (!lesson?.project_id || !selectedAiModel) {
@@ -100,16 +130,13 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     }
 
     try {
-      // 모든 상태의 스테이지 조회 (failed 포함)
-      const { data: stagesData, error: stagesError } = await supabase
-        .from("project_stages")
-        .select("*")
-        .eq("project_id", lesson.project_id)
-        .eq("ai_model", selectedAiModel)
-        .order("stage_order", { ascending: true });
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        stages: ProjectStage[];
+      }>(`/api/getprojectstages/${lesson.project_id}?aiModel=${selectedAiModel}`, 'GET');
 
-      if (stagesError) throw stagesError;
-      setStages(stagesData || []);
+      if (error) throw error;
+      setStages(data?.stages || []);
     } catch (error) {
       console.error("Error fetching stages:", error);
     }
@@ -129,72 +156,31 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     try {
       setGenerating(true);
 
-      // course에서 owner_id 가져오기
-      const { data: courseData, error: courseError } = await supabase
-        .from("courses")
-        .select("owner_id")
-        .eq("id", courseId)
-        .single();
-
-      if (courseError) throw courseError;
-      if (!courseData) throw new Error("Course not found");
-
-      // project_id가 없으면 프로젝트 생성
       let projectId = lesson.project_id;
 
+      // project_id가 없으면 프로젝트 생성
       if (!projectId) {
-        // 프로필이 없으면 생성 (에러 무시)
-        await supabase
-          .from("profiles")
-          .upsert({
-            user_id: courseData.owner_id,
-            display_name: "User",
-          }, {
-            onConflict: 'user_id',
-          })
-          .then(({ error }) => {
-            if (error && error.code !== '23505') {
-              console.warn("Profile upsert warning:", error);
-            }
-          });
+        const { data: projectData, error: projectError } = await callAzureFunctionDirect<{
+          success: boolean;
+          project: Project;
+          existed: boolean;
+        }>('/api/createlessonproject', 'POST', {
+          lessonId: lesson.id,
+          aiModel: selectedAiModel,
+        });
 
-        const { data: newProject, error: projectError } = await supabase
-          .from("projects")
-          .insert({
-            user_id: courseData.owner_id,
-            title: lesson.title,
-            description: lesson.learning_objectives || null,
-            document_content: lesson.learning_objectives || lesson.title || "",
-            ai_model: selectedAiModel,
-            status: "processing",
-          })
-          .select()
-          .single();
-
-        if (projectError) {
-          console.error("Error creating project:", projectError);
-          throw projectError;
+        if (projectError || !projectData?.success || !projectData.project) {
+          throw projectError || new Error('Failed to create project');
         }
+
+        projectId = projectData.project.id;
         
-        if (!newProject) {
-          throw new Error("프로젝트 생성에 실패했습니다.");
-        }
-        
-        projectId = newProject.id;
-
-        // lesson에 project_id 업데이트
-        const { error: updateError } = await supabase
-          .from("lessons")
-          .update({ project_id: projectId })
-          .eq("id", lessonId);
-
-        if (updateError) {
-          console.error("Error updating lesson:", updateError);
-          throw updateError;
-        }
+        // 로컬 상태 업데이트
+        setLesson({ ...lesson, project_id: projectId });
+        setProject(projectData.project);
       }
 
-      // process-document 호출
+      // process-document Azure Function 호출
       const documentContent = project?.document_content || lesson.learning_objectives || lesson.title || "";
       
       if (!documentContent.trim()) {
@@ -202,13 +188,11 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
         return;
       }
 
-      const { error: funcError } = await supabase.functions.invoke("process-document", {
-        body: {
-          projectId: projectId!,
-          documentContent: documentContent,
-          aiModel: selectedAiModel,
-          regenerate: !!lesson.project_id,
-        },
+      const { error: funcError } = await processDocument({
+        projectId: projectId!,
+        documentContent: documentContent,
+        aiModel: selectedAiModel as 'gemini' | 'claude' | 'chatgpt',
+        regenerate: !!lesson.project_id,
       });
 
       if (funcError) {
@@ -224,6 +208,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       // 실시간 업데이트를 위해 잠시 후 다시 새로고침
       setTimeout(() => {
         fetchLessonData();
+        fetchStages();
       }, 3000);
     } catch (error) {
       console.error("Error generating content:", error);
@@ -231,6 +216,31 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       toast.error(`콘텐츠 생성 중 오류가 발생했습니다: ${errorMessage}`);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSelectAiModel = async (aiModel: string) => {
+    if (!lesson) return;
+    
+    try {
+      const { data, error } = await callAzureFunctionDirect<{
+        success: boolean;
+        lesson: Lesson;
+      }>(`/api/updatelesson/${lesson.id}`, 'PUT', {
+        selected_ai_model: aiModel,
+      });
+
+      if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error('Failed to update lesson');
+      }
+
+      toast.success(`${aiModel} 모델이 최종 선택되었습니다.`);
+      setLesson({ ...lesson, selected_ai_model: aiModel });
+    } catch (error) {
+      console.error("Error updating selected AI model:", error);
+      toast.error("AI 모델 선택 중 오류가 발생했습니다.");
     }
   };
 
@@ -385,31 +395,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                         </div>
                         {lesson && lesson.selected_ai_model !== result.ai_model && (
                           <Button
-                            onClick={async () => {
-                              if (!lesson) return;
-                              try {
-                                const { error } = await supabase
-                                  .from("lessons")
-                                  .update({ selected_ai_model: result.ai_model })
-                                  .eq("id", lesson.id);
-
-                                if (error) throw error;
-
-                                toast.success(`${result.ai_model} 모델이 최종 선택되었습니다.`);
-                                // 레슨 데이터 새로고침
-                                const { data: updatedLesson } = await supabase
-                                  .from("lessons")
-                                  .select("*")
-                                  .eq("id", lesson.id)
-                                  .single();
-                                if (updatedLesson) {
-                                  setLesson(updatedLesson);
-                                }
-                              } catch (error) {
-                                console.error("Error updating selected AI model:", error);
-                                toast.error("AI 모델 선택 중 오류가 발생했습니다.");
-                              }
-                            }}
+                            onClick={() => handleSelectAiModel(result.ai_model)}
                             variant="default"
                             className="w-full"
                           >
@@ -502,4 +488,3 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
 };
 
 export default LessonDetailPane;
-
