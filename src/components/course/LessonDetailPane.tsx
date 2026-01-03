@@ -84,6 +84,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [stages, setStages] = useState<ProjectStage[]>([]);
+  const [allStagesByModel, setAllStagesByModel] = useState<Record<string, ProjectStage[]>>({});
   const [aiResults, setAiResults] = useState<AiResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -123,6 +124,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     }
   }, [lessonId]);
 
+  // 선택된 모델의 stages만 가져오기 (기존 로직 유지)
   const fetchStages = useCallback(async () => {
     if (!lesson?.project_id || !selectedAiModel) {
       setStages([]);
@@ -142,6 +144,43 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     }
   }, [lesson?.project_id, selectedAiModel]);
 
+  // 모든 AI 모델의 stages 가져오기
+  const fetchAllStagesByModel = useCallback(async () => {
+    if (!project?.id) {
+      setAllStagesByModel({});
+      return;
+    }
+
+    try {
+      // 모든 모델에 대해 stages 가져오기
+      const modelStages: Record<string, ProjectStage[]> = {};
+      const models = ['gemini', 'claude', 'chatgpt'];
+      
+      await Promise.all(
+        models.map(async (model) => {
+          try {
+            const { data, error } = await callAzureFunctionDirect<{
+              success: boolean;
+              stages: ProjectStage[];
+            }>(`/api/getprojectstages/${project.id}?aiModel=${model}`, 'GET');
+            
+            if (!error && data?.stages && data.stages.length > 0) {
+              modelStages[model] = data.stages;
+            }
+          } catch (err) {
+            // 특정 모델의 stages가 없으면 무시
+            console.log(`[LessonDetailPane] No stages for model ${model}`);
+          }
+        })
+      );
+      
+      console.log('[LessonDetailPane] Fetched stages by model:', Object.keys(modelStages));
+      setAllStagesByModel(modelStages);
+    } catch (error) {
+      console.error("Error fetching all stages by model:", error);
+    }
+  }, [project?.id]);
+
   useEffect(() => {
     fetchLessonData();
   }, [fetchLessonData]);
@@ -149,6 +188,12 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
   useEffect(() => {
     fetchStages();
   }, [fetchStages]);
+
+  useEffect(() => {
+    if (project?.id) {
+      fetchAllStagesByModel();
+    }
+  }, [project?.id, fetchAllStagesByModel]);
 
   const handleGenerateContent = async () => {
     if (!lesson) return;
@@ -209,6 +254,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       setTimeout(() => {
         fetchLessonData();
         fetchStages();
+        fetchAllStagesByModel();
       }, 3000);
     } catch (error) {
       console.error("Error generating content:", error);
@@ -424,8 +470,84 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
         </Card>
       )}
 
-      {/* 프로젝트 스테이지 표시 */}
-      {project && stages.length > 0 && (
+      {/* 프로젝트 스테이지 표시 - AI 모델별로 탭으로 구분 */}
+      {project && Object.keys(allStagesByModel).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>생성 단계</CardTitle>
+            <CardDescription>
+              AI 모델별 5단계 파이프라인 진행 상황
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={selectedAiModel} onValueChange={setSelectedAiModel}>
+              <TabsList>
+                {Object.keys(allStagesByModel).map((model) => (
+                  <TabsTrigger key={model} value={model}>
+                    {model.toUpperCase()}
+                    {allStagesByModel[model].every(s => s.status === 'completed') && (
+                      <Badge variant="outline" className="ml-2">완료</Badge>
+                    )}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {Object.entries(allStagesByModel).map(([model, modelStages]) => (
+                <TabsContent key={model} value={model}>
+                  <div className="space-y-4">
+                    {STAGE_NAMES.map((stageName, index) => {
+                      const stage = modelStages.find((s) => (s.stage_order || s.order_index || 0) === index + 1);
+                      return (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{index + 1}. {stageName}</span>
+                              {stage && (
+                                <Badge
+                                  variant={
+                                    stage.status === "completed"
+                                      ? "default"
+                                      : stage.status === "processing"
+                                      ? "secondary"
+                                      : stage.status === "failed"
+                                      ? "destructive"
+                                      : "outline"
+                                  }
+                                >
+                                  {stage.status === "completed" ? "완료" : 
+                                   stage.status === "processing" ? "처리 중" :
+                                   stage.status === "failed" ? "실패" : stage.status}
+                                </Badge>
+                              )}
+                              {!stage && (
+                                <Badge variant="outline">대기 중</Badge>
+                              )}
+                            </div>
+                          </div>
+                          {stage?.content && (
+                            <div className="mt-2 text-sm text-muted-foreground">
+                              <div className="prose prose-sm max-w-none">
+                                <pre className="whitespace-pre-wrap">{stage.content}</pre>
+                              </div>
+                            </div>
+                          )}
+                          {stage?.status === "failed" && !stage.content && (
+                            <div className="mt-2 text-sm text-destructive">
+                              이 단계의 생성이 실패했습니다. 콘텐츠 재생성 버튼을 클릭하여 다시 시도해주세요.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* 기존 stages 표시 (하위 호환성) */}
+      {project && stages.length > 0 && Object.keys(allStagesByModel).length === 0 && (
         <Card>
           <CardHeader>
             <CardTitle>생성 단계</CardTitle>
@@ -436,7 +558,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
           <CardContent>
             <div className="space-y-4">
               {STAGE_NAMES.map((stageName, index) => {
-                const stage = stages.find((s) => s.stage_order === index + 1);
+                const stage = stages.find((s) => (s.stage_order || s.order_index || 0) === index + 1);
                 return (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">

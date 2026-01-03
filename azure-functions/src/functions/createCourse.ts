@@ -95,6 +95,7 @@ export async function createCourse(
 app.http('createCourse', {
   methods: ['POST'],
   authLevel: 'anonymous',
+  route: 'createcourse',
   handler: createCourse,
 });
 

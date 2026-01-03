@@ -121,6 +121,7 @@ export async function createProject(
 app.http('createProject', {
   methods: ['POST'],
   authLevel: 'anonymous',
+  route: 'createproject',
   handler: createProject,
 });
 

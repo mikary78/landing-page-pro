@@ -16,6 +16,7 @@ import CourseFeedbackPage from "./pages/CourseFeedbackPage";
 import CoursesPage from "./pages/CoursesPage";
 import CourseCreatePage from "./pages/CourseCreatePage";
 import CourseBuilderPage from "./pages/CourseBuilderPage";
+import CourseDetail from "./pages/CourseDetail";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
@@ -50,6 +51,7 @@ function App() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/courses/create" element={<CourseCreatePage />} />
             <Route path="/courses/:id/builder" element={<CourseBuilderPage />} />
+            <Route path="/courses/:id/detail" element={<CourseDetail />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/azure-test" element={<AzureFunctionTest />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

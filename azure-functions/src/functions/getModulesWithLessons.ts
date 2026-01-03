@@ -160,7 +160,7 @@ export async function getModulesWithLessons(
 app.http('getModulesWithLessons', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'getmodules/{courseId}',
+  route: 'getmoduleswithlessons/{courseId}',
   handler: getModulesWithLessons,
 });
 

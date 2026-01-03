@@ -24,7 +24,7 @@ export async function getProjects(
       [user.userId, user.name || user.email || 'Unknown User']
     );
 
-    // Get projects for user
+    // Get projects for user (레슨에 연결된 프로젝트는 제외)
     const projects = await query(
       `SELECT 
         id,
@@ -45,6 +45,9 @@ export async function getProjects(
         updated_at
        FROM projects
        WHERE user_id = $1
+         AND id NOT IN (
+           SELECT project_id FROM lessons WHERE project_id IS NOT NULL
+         )
        ORDER BY created_at DESC`,
       [user.userId]
     );
@@ -71,6 +74,7 @@ export async function getProjects(
 app.http('getProjects', {
   methods: ['GET'],
   authLevel: 'anonymous',
+  route: 'getprojects',
   handler: getProjects,
 });
 

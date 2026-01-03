@@ -94,7 +94,7 @@ export async function getStats(
 app.http('getStats', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'getStats/{userId}',
+  route: 'getstats/{userId}',
   handler: getStats,
 });
 

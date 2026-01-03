@@ -467,7 +467,27 @@ const Dashboard = () => {
                           <span className="text-sm text-muted-foreground">
                             {new Date(course.created_at).toLocaleDateString("ko-KR")}
                           </span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/courses/${course.id}/detail`);
+                              }}
+                            >
+                              보기
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/courses/${course.id}/builder`);
+                              }}
+                            >
+                              빌더 열기
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -482,16 +502,6 @@ const Dashboard = () => {
                               ) : (
                                 <Trash2 className="h-4 w-4" />
                               )}
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/courses/${course.id}/builder`);
-                              }}
-                            >
-                              빌더 열기
                             </Button>
                           </div>
                         </div>

@@ -271,10 +271,47 @@ const ProjectDetail = () => {
     }
   };
 
-  const currentContent = useMemo(
-    () => getCurrentContent(project, aiResults, selectedAiModel),
-    [project, aiResults, selectedAiModel]
-  );
+  const currentContent = useMemo(() => {
+    // 1. aiResults에서 선택된 모델의 결과 확인
+    const aiResult = aiResults.find(
+      (result) => result.ai_model === selectedAiModel && result.generated_content
+    );
+    if (aiResult?.generated_content) {
+      console.log('[ProjectDetail] Using aiResult content for model:', selectedAiModel);
+      return aiResult.generated_content;
+    }
+
+    // 2. stages에서 콘텐츠 합치기 (선택된 모델의 stages만 필터링)
+    if (stages.length > 0) {
+      // selectedAiModel에 맞는 stages만 필터링
+      const filteredStages = stages.filter(stage => {
+        // ai_model이 없거나 선택된 모델과 일치하는 경우만 포함
+        const matchesModel = !stage.ai_model || stage.ai_model === selectedAiModel;
+        const hasContent = stage.content && stage.status === 'completed';
+        return matchesModel && hasContent;
+      });
+      
+      console.log('[ProjectDetail] Filtered stages for model:', selectedAiModel, 'count:', filteredStages.length, 'total stages:', stages.length);
+      
+      if (filteredStages.length > 0) {
+        const sortedStages = [...filteredStages].sort((a, b) => 
+          (a.stage_order || a.order_index || 0) - (b.stage_order || b.order_index || 0)
+        );
+        const content = sortedStages
+          .map((stage, index) => {
+            const stageName = stage.stage_name || STAGE_NAMES[index] || `단계 ${index + 1}`;
+            return `## ${stageName}\n\n${stage.content || '(내용 없음)'}`;
+          })
+          .join('\n\n---\n\n');
+        console.log('[ProjectDetail] Generated content from stages, length:', content.length);
+        return content;
+      }
+    }
+
+    // 3. 프로젝트의 generated_content 확인
+    console.log('[ProjectDetail] Using project generated_content');
+    return project?.generated_content;
+  }, [project, aiResults, selectedAiModel, stages]);
 
   const handleDownloadMarkdown = () => {
     if (!project || !currentContent) return;
@@ -770,7 +807,7 @@ const ProjectDetail = () => {
             <InfographicPreview
               title={project.title}
               description={project.description || undefined}
-              aiModel={project.ai_model}
+              aiModel={selectedAiModel || project.ai_model}
               stages={stages}
               createdAt={project.created_at}
               generatedContent={currentContent || undefined}

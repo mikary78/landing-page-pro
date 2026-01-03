@@ -65,6 +65,7 @@ export async function getTemplates(
 app.http('getTemplates', {
   methods: ['GET'],
   authLevel: 'anonymous',
+  route: 'gettemplates',
   handler: getTemplates,
 });
 

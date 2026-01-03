@@ -69,7 +69,7 @@ export async function deleteCourse(
 app.http('deleteCourse', {
   methods: ['DELETE'],
   authLevel: 'anonymous',
-  route: 'deleteCourse/{courseId}',
+  route: 'deletecourse/{courseId}',
   handler: deleteCourse,
 });
 
