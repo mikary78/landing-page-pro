@@ -69,7 +69,7 @@ export async function deleteProject(
 app.http('deleteProject', {
   methods: ['DELETE'],
   authLevel: 'anonymous',
-  route: 'deleteProject/{projectId}',
+  route: 'deleteproject/{projectId}',
   handler: deleteProject,
 });
 

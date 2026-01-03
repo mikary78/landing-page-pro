@@ -65,6 +65,7 @@ export async function getCourses(
 app.http('getCourses', {
   methods: ['GET'],
   authLevel: 'anonymous',
+  route: 'getcourses',
   handler: getCourses,
 });
 

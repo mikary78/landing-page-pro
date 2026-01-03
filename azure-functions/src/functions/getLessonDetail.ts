@@ -88,8 +88,9 @@ export async function getLessonDetail(
     const lesson = lessons[0];
     let project: Project | null = null;
     let aiResults: AiResult[] = [];
+    let stages: any[] = [];
 
-    // If lesson has project_id, get project and AI results
+    // If lesson has project_id, get project, AI results, and stages
     if (lesson.project_id) {
       const projects = await query<Project>(
         `SELECT * FROM projects WHERE id = $1`,
@@ -98,10 +99,38 @@ export async function getLessonDetail(
       project = projects[0] || null;
 
       if (project) {
+        // project_ai_results 테이블에서 조회
         aiResults = await query<AiResult>(
-          `SELECT * FROM project_ai_results WHERE project_id = $1`,
+          `SELECT * FROM project_ai_results WHERE project_id = $1 ORDER BY created_at DESC`,
           [lesson.project_id]
         );
+
+        // project_stages 테이블에서도 조회 (processDocument가 이 테이블에 저장함)
+        stages = await query(
+          `SELECT * FROM project_stages WHERE project_id = $1 ORDER BY order_index ASC`,
+          [lesson.project_id]
+        );
+
+        // aiResults가 비어있고 stages가 있으면, stages를 aiResults 형태로 변환
+        if (aiResults.length === 0 && stages.length > 0) {
+          // stages의 첫 번째 항목에서 AI 모델 추론 또는 project의 ai_model 사용
+          const aiModel = project.ai_model || 'gemini';
+          
+          // stages를 하나의 aiResult로 합침
+          const combinedContent = stages.map((s: any) => 
+            `## ${s.stage_name || `단계 ${s.order_index + 1}`}\n\n${s.content || '(내용 없음)'}`
+          ).join('\n\n---\n\n');
+
+          aiResults = [{
+            id: `stage-result-${lesson.project_id}`,
+            project_id: lesson.project_id,
+            ai_model: aiModel,
+            status: stages.every((s: any) => s.status === 'completed') ? 'completed' : 'processing',
+            generated_content: combinedContent,
+            created_at: stages[0]?.created_at || new Date().toISOString(),
+            updated_at: stages[stages.length - 1]?.updated_at || new Date().toISOString(),
+          }];
+        }
       }
     }
 
@@ -112,6 +141,7 @@ export async function getLessonDetail(
         lesson,
         project,
         aiResults,
+        stages,
       },
     };
   } catch (error) {

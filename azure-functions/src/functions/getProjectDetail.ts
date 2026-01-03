@@ -59,22 +59,33 @@ export async function getProjectDetail(
       [projectId]
     );
 
-    // Get stages for the project's AI model (or all stages if no specific model)
+    // Get stages for the project (ai_model 필터 또는 전체)
     let stages;
     try {
+      // 먼저 ai_model로 필터링 시도
       stages = await query(
         `SELECT * FROM project_stages 
          WHERE project_id = $1 AND ai_model = $2
-         ORDER BY stage_order ASC`,
+         ORDER BY COALESCE(stage_order, order_index) ASC`,
         [projectId, aiModel]
       );
+      
+      // ai_model 필터로 결과가 없으면, 전체 stages 조회
+      if (stages.length === 0) {
+        stages = await query(
+          `SELECT * FROM project_stages 
+           WHERE project_id = $1
+           ORDER BY COALESCE(stage_order, order_index) ASC`,
+          [projectId]
+        );
+      }
     } catch (stageError) {
-      // If ai_model column doesn't exist in project_stages, get all stages
+      // 컬럼이 없는 경우 기본 쿼리 사용
       context.warn('[GetProjectDetail] ai_model filter failed, getting all stages:', stageError);
       stages = await query(
         `SELECT * FROM project_stages 
          WHERE project_id = $1
-         ORDER BY stage_order ASC`,
+         ORDER BY order_index ASC`,
         [projectId]
       );
     }

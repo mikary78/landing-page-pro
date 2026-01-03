@@ -67,7 +67,7 @@ const CurriculumTreePane = ({
       const { data, error } = await callAzureFunctionDirect<{ 
         success: boolean; 
         modules: ModuleWithLessons[] 
-      }>(`/api/getmodules/${courseId}`, 'GET');
+      }>(`/api/getmoduleswithlessons/${courseId}`, 'GET');
 
       if (error) throw error;
       
