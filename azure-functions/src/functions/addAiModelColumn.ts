@@ -26,13 +26,14 @@ export async function addAiModelColumn(
       `);
       results.push('✓ Added ai_model column to projects table');
       context.log('[Migration] ✓ Added ai_model column to projects table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ ai_model column already exists in projects table');
         context.log('[Migration] ⊘ ai_model column already exists');
       } else {
-        results.push(`⚠ Error adding ai_model to projects: ${error.message}`);
-        context.error('[Migration] Error:', error.message);
+        results.push(`⚠ Error adding ai_model to projects: ${errorMessage}`);
+        context.error('[Migration] Error:', errorMessage);
       }
     }
 
@@ -44,13 +45,14 @@ export async function addAiModelColumn(
       `);
       results.push('✓ Added ai_model column to project_stages table');
       context.log('[Migration] ✓ Added ai_model column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ ai_model column already exists in project_stages table');
         context.log('[Migration] ⊘ ai_model column already exists in project_stages');
       } else {
-        results.push(`⚠ Error adding ai_model to project_stages: ${error.message}`);
-        context.error('[Migration] Error:', error.message);
+        results.push(`⚠ Error adding ai_model to project_stages: ${errorMessage}`);
+        context.error('[Migration] Error:', errorMessage);
       }
     }
 
@@ -63,9 +65,10 @@ export async function addAiModelColumn(
       `);
       results.push(`✓ Updated ${updateResult.rowCount} projects rows with default ai_model`);
       context.log(`[Migration] ✓ Updated ${updateResult.rowCount} projects rows`);
-    } catch (error: any) {
-      context.error('[Migration] Error updating projects rows:', error.message);
-      results.push(`⚠ Error updating projects rows: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.error('[Migration] Error updating projects rows:', errorMessage);
+      results.push(`⚠ Error updating projects rows: ${errorMessage}`);
     }
 
     // Update existing rows that have null ai_model in project_stages
@@ -77,9 +80,10 @@ export async function addAiModelColumn(
       `);
       results.push(`✓ Updated ${updateResult.rowCount} project_stages rows with default ai_model`);
       context.log(`[Migration] ✓ Updated ${updateResult.rowCount} project_stages rows`);
-    } catch (error: any) {
-      context.error('[Migration] Error updating project_stages rows:', error.message);
-      results.push(`⚠ Error updating project_stages rows: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.error('[Migration] Error updating project_stages rows:', errorMessage);
+      results.push(`⚠ Error updating project_stages rows: ${errorMessage}`);
     }
 
     // Verify the column exists in projects
@@ -116,12 +120,13 @@ export async function addAiModelColumn(
       `);
       results.push('✓ Added stage_order column to project_stages table');
       context.log('[Migration] ✓ Added stage_order column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ stage_order column already exists in project_stages table');
       } else {
-        results.push(`⚠ Error adding stage_order to project_stages: ${error.message}`);
-        context.error('[Migration] Error:', error.message);
+        results.push(`⚠ Error adding stage_order to project_stages: ${errorMessage}`);
+        context.error('[Migration] Error:', errorMessage);
       }
     }
 
@@ -133,11 +138,12 @@ export async function addAiModelColumn(
       `);
       results.push('✓ Added stage_name column to project_stages table');
       context.log('[Migration] ✓ Added stage_name column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ stage_name column already exists in project_stages table');
       } else {
-        results.push(`⚠ Error adding stage_name to project_stages: ${error.message}`);
+        results.push(`⚠ Error adding stage_name to project_stages: ${errorMessage}`);
       }
     }
 
@@ -148,11 +154,12 @@ export async function addAiModelColumn(
         ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending'
       `);
       results.push('✓ Added status column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ status column already exists in project_stages table');
       } else {
-        results.push(`⚠ Error adding status to project_stages: ${error.message}`);
+        results.push(`⚠ Error adding status to project_stages: ${errorMessage}`);
       }
     }
 
@@ -163,11 +170,12 @@ export async function addAiModelColumn(
         ADD COLUMN IF NOT EXISTS content TEXT
       `);
       results.push('✓ Added content column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ content column already exists in project_stages table');
       } else {
-        results.push(`⚠ Error adding content to project_stages: ${error.message}`);
+        results.push(`⚠ Error adding content to project_stages: ${errorMessage}`);
       }
     }
 
@@ -178,11 +186,12 @@ export async function addAiModelColumn(
         ADD COLUMN IF NOT EXISTS feedback TEXT
       `);
       results.push('✓ Added feedback column to project_stages table');
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
         results.push('⊘ feedback column already exists in project_stages table');
       } else {
-        results.push(`⚠ Error adding feedback to project_stages: ${error.message}`);
+        results.push(`⚠ Error adding feedback to project_stages: ${errorMessage}`);
       }
     }
 
@@ -207,7 +216,11 @@ export async function addAiModelColumn(
       ORDER BY ordinal_position
     `);
 
-    results.push(`--- project_stages columns: ${allColumns.rows.map((r: any) => r.column_name).join(', ')}`)
+    interface ColumnInfo {
+      column_name: string;
+      data_type: string;
+    }
+    results.push(`--- project_stages columns: ${allColumns.rows.map((r: ColumnInfo) => r.column_name).join(', ')}`)
 
     return {
       status: 200,
@@ -217,13 +230,14 @@ export async function addAiModelColumn(
         results,
       },
     };
-  } catch (error: any) {
-    context.error('[Migration] Failed:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    context.error('[Migration] Failed:', errorMessage);
     return {
       status: 500,
       jsonBody: {
         success: false,
-        error: error.message,
+        error: errorMessage,
       },
     };
   }
