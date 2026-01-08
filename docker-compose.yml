@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 데이터베이스
+  postgres:
+    image: postgres:15-alpine
+    container_name: landing-page-pro-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-landingpagepro}
+      POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pgadmin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - landing-page-pro-network
+
+  # Azurite (로컬 Azure Storage 에뮬레이터)
+  azurite:
+    image: mcr.microsoft.com/azurite/azurite:latest
+    container_name: landing-page-pro-azurite
+    ports:
+      - "10000:10000"  # Blob
+      - "10001:10001"  # Queue
+      - "10002:10002"  # Table
+    volumes:
+      - azurite_data:/data
+    networks:
+      - landing-page-pro-network
+
+  # Azure Functions 백엔드
+  azure-functions:
+    build:
+      context: ./azure-functions
+      dockerfile: Dockerfile
+    container_name: landing-page-pro-functions
+    environment:
+      # Azure Functions 설정
+      AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+      FUNCTIONS_WORKER_RUNTIME: node
+      
+      # PostgreSQL 연결 정보
+      AZURE_POSTGRES_HOST: postgres
+      AZURE_POSTGRES_DATABASE: ${POSTGRES_DB:-landingpagepro}
+      AZURE_POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
+      AZURE_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      AZURE_POSTGRES_PORT: 5432
+      
+      # Entra ID 설정
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
+      ENTRA_TENANT_NAME: ${ENTRA_TENANT_NAME}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}
+      
+      # AI API Keys
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "${FUNCTIONS_PORT:-7071}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      azurite:
+        condition: service_started
+    networks:
+      - landing-page-pro-network
+
+  # 프론트엔드
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_ENTRA_TENANT_NAME: ${VITE_ENTRA_TENANT_NAME}
+        VITE_ENTRA_TENANT_ID: ${VITE_ENTRA_TENANT_ID}
+        VITE_ENTRA_CLIENT_ID: ${VITE_ENTRA_CLIENT_ID}
+        VITE_ENTRA_REDIRECT_URI: ${VITE_ENTRA_REDIRECT_URI:-http://localhost:5173}
+        VITE_AZURE_FUNCTIONS_URL: ${VITE_AZURE_FUNCTIONS_URL:-http://localhost:7071}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+    container_name: landing-page-pro-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - azure-functions
+    networks:
+      - landing-page-pro-network
+
+volumes:
+  postgres_data:
+    driver: local
+  azurite_data:
+    driver: local
+
+networks:
+  landing-page-pro-network:
+    driver: bridge
+
