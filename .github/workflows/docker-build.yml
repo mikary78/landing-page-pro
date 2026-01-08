@@ -1,0 +1,164 @@
+# ============================================
+# Docker 이미지 빌드 및 Azure Container Registry 푸시
+# ============================================
+# 
+# 트리거:
+# - main/develop 브랜치 푸시
+# - 수동 실행 (workflow_dispatch)
+#
+# 필요한 GitHub Secrets:
+# - AZURE_CREDENTIALS: Azure Service Principal JSON
+# - ACR_LOGIN_SERVER: Azure Container Registry 로그인 서버 (예: landingpagepro.azurecr.io)
+# - ACR_USERNAME: ACR 사용자명
+# - ACR_PASSWORD: ACR 비밀번호
+# ============================================
+
+name: Docker Build & Push
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'azure-functions/**'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'nginx.conf'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '빌드 환경'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  FRONTEND_IMAGE: landing-page-pro-frontend
+  FUNCTIONS_IMAGE: landing-page-pro-functions
+
+jobs:
+  # 환경 결정
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      tag: ${{ steps.set-env.outputs.tag }}
+    steps:
+      - name: Determine environment and tag
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+          
+          # 태그 생성 (날짜 + 커밋 해시)
+          TAG=$(date +%Y%m%d)-${GITHUB_SHA::8}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+  # 프론트엔드 이미지 빌드
+  build-frontend:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_IMAGE }}:${{ needs.setup.outputs.tag }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_IMAGE }}:${{ needs.setup.outputs.environment }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_IMAGE }}:latest
+          build-args: |
+            VITE_APP_ENV=${{ needs.setup.outputs.environment }}
+            VITE_AZURE_FUNCTIONS_URL=${{ needs.setup.outputs.environment == 'production' && secrets.AZURE_FUNCTIONS_URL_PROD || secrets.AZURE_FUNCTIONS_URL_STAGING }}
+            VITE_ENTRA_CLIENT_ID=${{ needs.setup.outputs.environment == 'production' && secrets.ENTRA_CLIENT_ID_PROD || secrets.ENTRA_CLIENT_ID_STAGING }}
+            VITE_ENTRA_TENANT_ID=${{ secrets.ENTRA_TENANT_ID }}
+            VITE_ENTRA_AUTHORITY=${{ secrets.ENTRA_AUTHORITY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Azure Functions 이미지 빌드
+  build-functions:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: azure-functions/package-lock.json
+
+      - name: Build Azure Functions
+        working-directory: azure-functions
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push functions image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./azure-functions
+          file: ./azure-functions/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:${{ needs.setup.outputs.tag }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:${{ needs.setup.outputs.environment }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 배포 알림
+  notify:
+    needs: [setup, build-frontend, build-functions]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "🐳 Docker Build Summary"
+          echo "======================="
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Tag: ${{ needs.setup.outputs.tag }}"
+          echo ""
+          echo "Images:"
+          echo "  - ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FRONTEND_IMAGE }}:${{ needs.setup.outputs.tag }}"
+          echo "  - ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:${{ needs.setup.outputs.tag }}"

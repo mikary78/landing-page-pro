@@ -1,0 +1,116 @@
+# ============================================
+# Landing Page Pro - Docker Compose
+# ============================================
+# 로컬 개발 및 테스트 환경 구성
+#
+# 실행: docker-compose up -d
+# 중지: docker-compose down
+# 로그: docker-compose logs -f
+# ============================================
+
+version: '3.8'
+
+services:
+  # ---- 프론트엔드 ----
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_ENV: development
+        VITE_AZURE_FUNCTIONS_URL: http://localhost:7071
+        VITE_ENTRA_CLIENT_ID: ${VITE_ENTRA_CLIENT_ID:-your-client-id}
+        VITE_ENTRA_TENANT_ID: ${VITE_ENTRA_TENANT_ID:-your-tenant-id}
+        VITE_ENTRA_AUTHORITY: ${VITE_ENTRA_AUTHORITY:-https://your-tenant.ciamlogin.com}
+    container_name: landing-page-pro-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - functions
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ---- Azure Functions (API) ----
+  functions:
+    build:
+      context: ./azure-functions
+      dockerfile: Dockerfile
+    container_name: landing-page-pro-functions
+    ports:
+      - "7071:80"
+    environment:
+      - FUNCTIONS_WORKER_RUNTIME=node
+      - AzureWebJobsStorage=${AZURE_WEBJOBS_STORAGE:-UseDevelopmentStorage=true}
+      - AZURE_POSTGRES_HOST=${AZURE_POSTGRES_HOST:-postgres}
+      - AZURE_POSTGRES_DATABASE=${AZURE_POSTGRES_DATABASE:-landingpagepro}
+      - AZURE_POSTGRES_USER=${AZURE_POSTGRES_USER:-pgadmin}
+      - AZURE_POSTGRES_PASSWORD=${AZURE_POSTGRES_PASSWORD:-password}
+      - AZURE_POSTGRES_PORT=${AZURE_POSTGRES_PORT:-5432}
+      - ENTRA_TENANT_ID=${ENTRA_TENANT_ID:-}
+      - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # ---- PostgreSQL 데이터베이스 (로컬 개발용) ----
+  postgres:
+    image: postgres:15-alpine
+    container_name: landing-page-pro-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=landingpagepro
+      - POSTGRES_USER=pgadmin
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgadmin -d landingpagepro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---- Azurite (Azure Storage 에뮬레이터) ----
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: landing-page-pro-azurite
+    ports:
+      - "10000:10000"  # Blob
+      - "10001:10001"  # Queue
+      - "10002:10002"  # Table
+    volumes:
+      - azurite-data:/data
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# ---- 네트워크 ----
+networks:
+  app-network:
+    driver: bridge
+
+# ---- 볼륨 ----
+volumes:
+  postgres-data:
+    driver: local
+  azurite-data:
+    driver: local

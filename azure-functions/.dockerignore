@@ -1,0 +1,27 @@
+# ============================================
+# Docker Ignore - Azure Functions
+# ============================================
+
+# Node.js
+node_modules
+npm-debug.log
+
+# TypeScript 소스 (빌드된 파일만 필요)
+src
+tsconfig.json
+
+# 환경 파일
+local.settings.json
+.env
+.env.*
+
+# 테스트
+*.test.ts
+*.spec.ts
+__tests__
+
+# 기타
+*.md
+*.zip
+.git
+.gitignore

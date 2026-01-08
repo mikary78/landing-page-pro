@@ -1,0 +1,61 @@
+# ============================================
+# Docker Ignore - Landing Page Pro
+# ============================================
+
+# Git
+.git
+.gitignore
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+
+# 빌드 출력
+dist
+build
+.cache
+
+# 환경 파일
+.env
+.env.*
+!.env.example
+*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# 테스트
+coverage
+test-results
+playwright-report
+.nyc_output
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# 문서
+*.md
+!README.md
+docs
+
+# 기타
+*.log
+*.zip
+*.tar.gz
+
+# Azure Functions 별도 빌드
+azure-functions/node_modules
+azure-functions/dist
+azure-functions/*.zip
+
+# Supabase 로컬 설정
+supabase/.branches
+supabase/.temp
+
+# History
+history
