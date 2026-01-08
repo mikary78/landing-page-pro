@@ -26,6 +26,7 @@
     "@azure/msal-browser": "^4.27.0",
     "@azure/msal-react": "^3.0.23",
     "@hookform/resolvers": "^3.10.0",
+    "@microsoft/applicationinsights-web": "^3.3.10",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
