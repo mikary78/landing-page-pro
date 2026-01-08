@@ -2,10 +2,17 @@
  * 통합 E2E 테스트 시나리오
  * 
  * 실제 사용자 플로우를 시뮬레이션하는 통합 테스트:
- * 1. 랜딩 페이지 → 회원가입 → 대시보드
+ * 1. 랜딩 페이지 → 인증 페이지 접근 (Microsoft Entra ID 기반)
  * 2. 대시보드 → 프로젝트 생성 → 프로젝트 상세
  * 3. 프로젝트 상세 → 다운로드 → 로그아웃
  * 4. 로그인 → 프로젝트 관리 → 삭제
+ * 
+ * 수정일: 2026-01-08
+ * 수정 내용: Microsoft Entra ID 기반 인증으로 테스트 업데이트
+ * 
+ * 주의: Microsoft Entra ID 인증은 팝업 기반이므로 실제 로그인 테스트는
+ *       테스트 환경에서 자동화하기 어렵습니다. 인증 관련 테스트는
+ *       UI 요소 확인까지만 수행합니다.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -34,8 +41,8 @@ describe('통합 E2E 테스트 시나리오', () => {
     await driver.quit();
   });
 
-  describe('시나리오 1: 신규 사용자 회원가입 플로우', () => {
-    it('랜딩 페이지 → 회원가입 → 대시보드 이동이 완료되어야 함', async () => {
+  describe('시나리오 1: 인증 페이지 접근 플로우 (Microsoft Entra ID)', () => {
+    it('랜딩 페이지 → 인증 페이지 → 회원가입 모드 전환이 완료되어야 함', async () => {
       // 1. 랜딩 페이지 접근
       await driver.get(BASE_URL);
       await waitForPageLoad(driver);
@@ -54,54 +61,38 @@ describe('통합 E2E 테스트 시나리오', () => {
         await waitForPageLoad(driver);
       }
 
-      // 3. 회원가입 모드로 전환
-      try {
-        const signUpButton = await driver.findElement(
-          By.xpath("//button[contains(text(), '회원가입')]")
-        );
-        await signUpButton.click();
-        await driver.sleep(500);
-      } catch (error) {
-        // 이미 회원가입 모드일 수 있음
-      }
-
-      // 4. 회원가입 정보 입력
-      const emailInput = await driver.findElement(By.css('input[type="email"]'));
-      await emailInput.clear();
-      await emailInput.sendKeys(testEmail);
-
-      const passwordInput = await driver.findElement(By.css('input[type="password"]'));
-      await passwordInput.clear();
-      await passwordInput.sendKeys(testPassword);
-
-      // 이름 필드가 있으면 입력
-      try {
-        const nameInput = await driver.findElement(
-          By.css('input[placeholder*="이름"], input[name*="name"]')
-        );
-        await nameInput.clear();
-        await nameInput.sendKeys(testDisplayName);
-      } catch (error) {
-        // 이름 필드가 선택적일 수 있음
-      }
-
-      // 5. 회원가입 제출
-      const submitButton = await driver.findElement(
-        By.xpath("//button[@type='submit'] | //button[contains(text(), '회원가입')]")
-      );
-      await submitButton.click();
-      await driver.sleep(3000); // 회원가입 처리 대기
-
-      // 6. 대시보드로 리다이렉트 확인
+      // 3. 인증 페이지 로드 확인
       const currentUrl = await driver.getCurrentUrl();
-      expect(currentUrl).toMatch(/\/dashboard|\/$/);
+      expect(currentUrl).toContain('/auth');
+
+      // 4. 로그인 버튼 확인 (Microsoft Entra ID 기반)
+      const loginButton = await driver.findElements(
+        By.xpath("//button[contains(text(), '이메일로 로그인')]")
+      );
+      expect(loginButton.length).toBeGreaterThan(0);
+
+      // 5. 회원가입 모드로 전환 ("계정이 없으신가요? 회원가입" 버튼)
+      const signUpToggle = await driver.findElement(
+        By.xpath("//button[contains(., '계정이 없으신가요')]")
+      );
+      await signUpToggle.click();
+      await driver.sleep(500);
+
+      // 6. 회원가입 버튼 확인
+      const signUpButton = await driver.findElements(
+        By.xpath("//button[contains(text(), '이메일로 회원가입')]")
+      );
+      expect(signUpButton.length).toBeGreaterThan(0);
+
+      // 참고: 실제 회원가입은 Microsoft Entra ID 팝업에서 처리되므로
+      // E2E 테스트에서 자동화하기 어렵습니다.
     });
   });
 
   describe('시나리오 2: 프로젝트 생성 플로우', () => {
     it('대시보드 → 프로젝트 생성 → 프로젝트 상세 이동이 완료되어야 함', async () => {
       try {
-        // 1. 로그인
+        // 1. 로그인 시도 (Microsoft Entra ID 인증이 필요하므로 실패할 수 있음)
         await login(driver, testEmail, testPassword);
         await driver.sleep(2000);
 
@@ -153,7 +144,8 @@ describe('통합 E2E 테스트 시나리오', () => {
           expect(currentUrl).toMatch(/\/project\/[^/]+$/);
         }
       } catch (error) {
-        console.log('Project creation flow may have issues:', error);
+        // Microsoft Entra ID 인증이 필요하여 로그인 실패 시 건너뜀
+        console.log('Project creation flow may have issues (auth required):', error);
       }
     });
   });
@@ -207,7 +199,8 @@ describe('통합 E2E 테스트 시나리오', () => {
           console.log('No projects available for testing');
         }
       } catch (error) {
-        console.log('Project management flow may have issues:', error);
+        // Microsoft Entra ID 인증이 필요하여 로그인 실패 시 건너뜀
+        console.log('Project management flow may have issues (auth required):', error);
       }
     });
   });
@@ -290,9 +283,9 @@ describe('통합 E2E 테스트 시나리오', () => {
         const finalUrl = await driver.getCurrentUrl();
         expect(finalUrl).toMatch(/\/$|\/auth/);
       } catch (error) {
-        console.log('Logout flow may have issues:', error);
+        // Microsoft Entra ID 인증이 필요하여 로그인 실패 시 건너뜀
+        console.log('Logout flow may have issues (auth required):', error);
       }
     });
   });
 });
-

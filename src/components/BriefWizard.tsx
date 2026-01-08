@@ -182,10 +182,10 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="document">MVP/PRD 문서 내용 *</Label>
+              <Label htmlFor="document">교육 콘텐츠 내용 *</Label>
               <Textarea
                 id="document"
-                placeholder="교육 콘텐츠로 만들고 싶은 MVP 또는 PRD 문서의 내용을 입력하세요..."
+                placeholder="교육 콘텐츠로 만들고 싶은 내용(목적, 소재, 교육 목표 등)을 입력하세요..."
                 value={formData.documentContent}
                 onChange={(e) => setFormData({ ...formData, documentContent: e.target.value })}
                 rows={12}
@@ -193,7 +193,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
               />
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <FileText className="h-3 w-3" />
-                문서의 내용을 복사하여 붙여넣기 하세요
+                기존 문서의 내용을 복사하여 붙여넣기 하세요
               </p>
             </div>
           </div>

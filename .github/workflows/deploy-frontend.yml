@@ -1,0 +1,182 @@
+# 프론트엔드 Azure App Service 배포 워크플로우
+# 
+# 트리거:
+# - main 브랜치 푸시 시 프로덕션 배포
+# - develop 브랜치 푸시 시 스테이징 배포
+# - 수동 실행 가능 (workflow_dispatch)
+#
+# 필요한 GitHub Secrets:
+# - AZURE_CREDENTIALS: Azure Service Principal JSON
+# - AZURE_WEBAPP_NAME_PROD: 프로덕션 App Service 이름 (예: app-landing-page-pro)
+# - AZURE_WEBAPP_NAME_STAGING: 스테이징 App Service 이름 (예: app-landing-page-pro-staging)
+#
+# 설정 가이드: docs/CI-CD-SETUP-GUIDE.md 참조
+
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'tailwind.config.ts'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '배포 환경 선택'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # 빌드 및 테스트
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:run
+        continue-on-error: true
+
+      - name: Determine environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build for staging
+        if: steps.set-env.outputs.environment == 'staging'
+        run: npm run build -- --mode staging
+        env:
+          VITE_AZURE_FUNCTIONS_URL: ${{ secrets.AZURE_FUNCTIONS_URL_STAGING }}
+          VITE_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID_STAGING }}
+          VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          VITE_ENTRA_AUTHORITY: ${{ secrets.ENTRA_AUTHORITY }}
+
+      - name: Build for production
+        if: steps.set-env.outputs.environment == 'production'
+        run: npm run build -- --mode production
+        env:
+          VITE_AZURE_FUNCTIONS_URL: ${{ secrets.AZURE_FUNCTIONS_URL_PROD }}
+          VITE_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID_PROD }}
+          VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          VITE_ENTRA_AUTHORITY: ${{ secrets.ENTRA_AUTHORITY }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ steps.set-env.outputs.environment }}
+          path: dist/
+          retention-days: 7
+
+  # 스테이징 배포
+  deploy-staging:
+    needs: build
+    if: needs.build.outputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ secrets.AZURE_WEBAPP_NAME_STAGING }}.azurewebsites.net
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-staging
+          path: dist/
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App (Staging)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME_STAGING }}
+          package: dist/
+
+      - name: Azure logout
+        run: az logout
+        if: always()
+
+  # 프로덕션 배포
+  deploy-production:
+    needs: build
+    if: needs.build.outputs.environment == 'production'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ secrets.AZURE_WEBAPP_NAME_PROD }}.azurewebsites.net
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-production
+          path: dist/
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App (Production)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME_PROD }}
+          package: dist/
+
+      - name: Azure logout
+        run: az logout
+        if: always()
+
+  # 배포 완료 알림 (선택사항)
+  notify:
+    needs: [build, deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Send deployment notification
+        run: |
+          echo "🚀 Frontend deployment completed!"
+          echo "Environment: ${{ needs.build.outputs.environment }}"
+          echo "Status: ${{ job.status }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"

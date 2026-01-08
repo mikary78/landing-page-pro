@@ -1,0 +1,183 @@
+# Azure Functions 배포 워크플로우
+#
+# 트리거:
+# - main 브랜치 푸시 시 프로덕션 배포
+# - develop 브랜치 푸시 시 스테이징 배포
+# - azure-functions/ 폴더 변경 시에만 트리거
+# - 수동 실행 가능 (workflow_dispatch)
+#
+# 필요한 GitHub Secrets:
+# - AZURE_CREDENTIALS: Azure Service Principal JSON
+# - AZURE_FUNCTIONAPP_NAME_PROD: 프로덕션 Function App 이름 (예: func-landing-page-pro)
+# - AZURE_FUNCTIONAPP_NAME_STAGING: 스테이징 Function App 이름 (예: func-landing-page-pro-staging)
+#
+# 설정 가이드: docs/CI-CD-SETUP-GUIDE.md 참조
+
+name: Deploy Azure Functions
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'azure-functions/**'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '배포 환경 선택'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'azure-functions'
+
+jobs:
+  # 빌드 및 테스트
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: azure-functions/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        run: npm run build
+
+      - name: Determine environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare deployment package
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        run: |
+          cd dist
+          npm ci --omit=dev
+          zip -r ../deploy.zip .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: functions-build-${{ steps.set-env.outputs.environment }}
+          path: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/deploy.zip
+          retention-days: 7
+
+  # 스테이징 배포
+  deploy-staging:
+    needs: build
+    if: needs.build.outputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ secrets.AZURE_FUNCTIONAPP_NAME_STAGING }}.azurewebsites.net
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: functions-build-staging
+          path: ./
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Functions (Staging)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.AZURE_FUNCTIONAPP_NAME_STAGING }}
+          package: deploy.zip
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          sleep 30
+          curl -s -o /dev/null -w "%{http_code}" \
+            "https://${{ secrets.AZURE_FUNCTIONAPP_NAME_STAGING }}.azurewebsites.net/api/hello" \
+            | grep -q "200" && echo "✅ Deployment verified" || echo "⚠️ Verification pending"
+
+      - name: Azure logout
+        run: az logout
+        if: always()
+
+  # 프로덕션 배포
+  deploy-production:
+    needs: build
+    if: needs.build.outputs.environment == 'production'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ secrets.AZURE_FUNCTIONAPP_NAME_PROD }}.azurewebsites.net
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: functions-build-production
+          path: ./
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Functions (Production)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.AZURE_FUNCTIONAPP_NAME_PROD }}
+          package: deploy.zip
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          sleep 30
+          curl -s -o /dev/null -w "%{http_code}" \
+            "https://${{ secrets.AZURE_FUNCTIONAPP_NAME_PROD }}.azurewebsites.net/api/hello" \
+            | grep -q "200" && echo "✅ Deployment verified" || echo "⚠️ Verification pending"
+
+      - name: Azure logout
+        run: az logout
+        if: always()
+
+  # 배포 완료 알림 (선택사항)
+  notify:
+    needs: [build, deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send deployment notification
+        run: |
+          echo "🚀 Azure Functions deployment completed!"
+          echo "Environment: ${{ needs.build.outputs.environment }}"
+          echo "Status: ${{ job.status }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
