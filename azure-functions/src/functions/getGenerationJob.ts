@@ -6,6 +6,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { requireAuth } from '../middleware/auth';
 import { query } from '../lib/database';
+import { isUuid } from '../lib/validation';
 
 export async function getGenerationJob(
   request: HttpRequest,
@@ -18,6 +19,10 @@ export async function getGenerationJob(
     if (!projectId) {
       return { status: 400, jsonBody: { success: false, error: 'Project ID is required' } };
     }
+
+        if (!isUuid(projectId)) {
+          return { status: 400, jsonBody: { success: false, error: 'Invalid projectId (UUID required)' } };
+        }
 
     // 프로젝트 소유권 확인
     const projectCheck = await query(`SELECT id FROM projects WHERE id = $1 AND user_id = $2`, [

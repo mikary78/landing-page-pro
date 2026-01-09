@@ -21,6 +21,7 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { query, transaction } from '../lib/database';
 import { planGenerationSteps, RequestedOutputs, GenerationOptions } from '../lib/agent/plan';
+import { isUuid } from '../lib/validation';
 
 const jobQueueOutput = output.storageQueue({
   queueName: 'generation-jobs',
@@ -47,6 +48,10 @@ export async function startGenerationJob(
     if (!projectId || !documentContent?.trim() || !aiModel) {
       return { status: 400, jsonBody: { success: false, error: 'Missing required fields' } };
     }
+
+        if (!isUuid(projectId)) {
+          return { status: 400, jsonBody: { success: false, error: 'Invalid projectId (UUID required)' } };
+        }
 
     if (!outputs?.document && !outputs?.infographic && !outputs?.slides) {
       return { status: 400, jsonBody: { success: false, error: 'At least one output must be selected' } };

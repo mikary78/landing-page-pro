@@ -179,12 +179,12 @@ export async function processDocument(
 
         stageContents.push(content);
 
-        // Insert stage (ai_model과 stage_order 포함)
+        // Insert stage (스키마 호환: 기본 스키마는 order_index만 존재)
         const result = await client.query(
-          `INSERT INTO project_stages (project_id, stage_name, content, status, order_index, stage_order, ai_model, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $5, $6, NOW(), NOW())
+          `INSERT INTO project_stages (project_id, stage_name, content, status, order_index, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
            RETURNING id`,
-          [projectId, STAGE_NAMES[i], content, 'completed', i, aiModel]
+          [projectId, STAGE_NAMES[i], content, 'completed', i]
         );
 
         stageIds.push(result.rows[0].id);
