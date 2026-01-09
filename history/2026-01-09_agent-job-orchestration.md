@@ -65,3 +65,10 @@
   - speakerNotes의 인용/안내는 유지하면서, UI가 deck-level sources를 단일 진실로 사용 가능.
 - Frontend
   - Studio 슬라이드 탭에서 `slides.content_json.sources`를 우선 렌더링하고, 없을 때만 `web_search` step의 sources로 fallback.
+
+## 2026-01-09 확장: 슬라이드 캔버스 Sources 페이지 자동 생성
+- Backend
+  - `citations.enforceSlideCitationsAndDeckSources()`에서 덱 마지막에 `title: "Sources"` 슬라이드를 자동 append.
+  - 이미 `Sources/출처` 슬라이드가 있으면 중복 생성하지 않음.
+- Frontend
+  - 구버전 산출물(백엔드 append 전)도 보이도록, `SlidesCanvas`가 `data.sources` 기반으로 가상 Sources 슬라이드를 마지막에 추가해 렌더링.
