@@ -8,6 +8,18 @@ describe("buildAzureFunctionsUrl", () => {
     expect(url).toBe("https://func-landing-page-pro.azurewebsites.net/api/generation/start");
   });
 
+  it("keeps base pathname (e.g. /api) when endpoint does not include it", () => {
+    const base = "https://func-landing-page-pro.azurewebsites.net/api";
+    const url = buildAzureFunctionsUrl(base, "/generation/start");
+    expect(url).toBe("https://func-landing-page-pro.azurewebsites.net/api/generation/start");
+  });
+
+  it("does not duplicate base pathname when endpoint already includes it", () => {
+    const base = "https://func-landing-page-pro.azurewebsites.net/api";
+    const url = buildAzureFunctionsUrl(base, "/api/generation/start");
+    expect(url).toBe("https://func-landing-page-pro.azurewebsites.net/api/generation/start");
+  });
+
   it("preserves query params (e.g. function key code)", () => {
     const base = "https://example.azurewebsites.net/?code=ABC123";
     const url = buildAzureFunctionsUrl(base, "/api/hello");
