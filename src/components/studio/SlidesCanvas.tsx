@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 type SlidesJson = {
   deckTitle?: string;
   slides?: Array<{ title: string; bullets: string[]; speakerNotes?: string; visualHint?: string }>;
+  sources?: Array<{ id: number; title?: string; url: string }>;
 };
 
 export function SlidesCanvas({
@@ -31,7 +32,35 @@ export function SlidesCanvas({
   }, []);
 
   const height = 520;
-  const slides = useMemo(() => (Array.isArray(data?.slides) ? data!.slides! : []), [data?.slides]);
+  const slides = useMemo(() => {
+    const base = Array.isArray(data?.slides) ? data!.slides! : [];
+    const hasSourcesSlide = base.some((s) => {
+      const t = (s?.title || "").trim().toLowerCase();
+      return t === "sources" || t === "출처";
+    });
+
+    // Backward compatibility: older artifacts may not include Sources slide yet.
+    if (hasSourcesSlide) return base;
+
+    const deckSources = Array.isArray((data as any)?.sources) ? (data as any).sources : [];
+    const bullets =
+      deckSources.length > 0
+        ? deckSources.slice(0, 12).map((s: any) => `[${s.id}] ${s.title ? `${s.title} - ` : ""}${s.url}`)
+        : ["웹 검색 결과가 없습니다. (TAVILY_API_KEY/SERPER_API_KEY 미설정 가능)"];
+
+    return [
+      ...base,
+      {
+        title: "Sources",
+        bullets,
+        speakerNotes:
+          deckSources.length > 0
+            ? "출처 목록 페이지입니다. 앞 슬라이드의 [n] 인용은 본 페이지의 Sources와 매칭됩니다."
+            : "웹 검색 결과가 없어 출처를 표시할 수 없습니다.",
+        visualHint: "Clean list layout with small font and plenty of whitespace.",
+      },
+    ];
+  }, [data]);
   const current = slides[idx] || null;
 
   useEffect(() => {
