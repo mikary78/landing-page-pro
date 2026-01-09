@@ -77,7 +77,7 @@ export async function generateCurriculum(
     context.log(`Generate curriculum request: ${courseTitle} (${aiModel})`);
 
     // Verify course belongs to user (or create if not exists for testing)
-    let courses = await query(
+    const courses = await query(
       'SELECT * FROM courses WHERE id = $1 AND owner_id = $2',
       [courseId, user.userId]
     );
@@ -224,10 +224,11 @@ export async function generateCurriculum(
         },
       },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     context.error('[GenerateCurriculum] Error:', error);
 
-    if (error.message === 'Unauthorized') {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage === 'Unauthorized') {
       return {
         status: 401,
         jsonBody: { error: 'Unauthorized' },
@@ -236,7 +237,7 @@ export async function generateCurriculum(
 
     return {
       status: 500,
-      jsonBody: { error: error.message || '커리큘럼 생성 중 오류가 발생했습니다.' },
+      jsonBody: { error: errorMessage || '커리큘럼 생성 중 오류가 발생했습니다.' },
     };
   }
 }

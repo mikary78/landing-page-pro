@@ -55,12 +55,13 @@ export async function runMigration(
         const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
         context.log(`[Migration] ✓ Statement ${i + 1}: ${preview}...`);
         results.push(`✓ ${preview}...`);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         // Check if error is due to already existing object
         if (
-          error.message.includes('already exists') ||
-          error.message.includes('already defined') ||
-          error.message.includes('duplicate')
+          errorMessage.includes('already exists') ||
+          errorMessage.includes('already defined') ||
+          errorMessage.includes('duplicate')
         ) {
           skipCount++;
           const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
@@ -69,9 +70,9 @@ export async function runMigration(
         } else {
           errorCount++;
           const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
-          context.error(`[Migration] ✗ Error in statement ${i + 1}: ${error.message}`);
+          context.error(`[Migration] ✗ Error in statement ${i + 1}: ${errorMessage}`);
           context.error(`[Migration] Statement: ${preview}...`);
-          results.push(`✗ Error: ${preview}... - ${error.message}`);
+          results.push(`✗ Error: ${preview}... - ${errorMessage}`);
 
           // Don't stop on errors, continue with next statement
         }
@@ -95,14 +96,15 @@ export async function runMigration(
         details: results,
       },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     context.error('[Migration] Failed to run migration:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
     return {
       status: 500,
       jsonBody: {
         success: false,
-        error: error.message,
+        error: errorMessage,
       },
     };
   }

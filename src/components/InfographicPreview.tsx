@@ -113,7 +113,7 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
           .map((line, idx) => {
             const original = line;
             // 불릿 포인트 제거
-            line = line.replace(/^[•\-\*]\s*/, '');
+            line = line.replace(/^[•\-*]\s*/, '');
             // 숫자 목록 제거
             line = line.replace(/^\d+[.)]\s*/, '');
             // **제목:** 형식 제거
@@ -130,9 +130,9 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
                    !line.startsWith('#') && 
                    !line.startsWith('**') &&
                    line.length > 5 &&  // 10에서 5로 완화
-                   !line.match(/^[•\-\*]\s*$/) &&
+                   !line.match(/^[•\-*]\s*$/) &&
                    !line.match(/^[\d.]+\s*$/) &&
-                   !line.match(/^[:\-]\s*$/); // 콜론이나 대시만 있는 줄 제외
+                   !line.match(/^[:-]\s*$/); // 콜론이나 대시만 있는 줄 제외
             return isValid;
           });
         console.log('[parseFinalContent] Goals found:', result.goals.length, result.goals);
@@ -186,12 +186,12 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
         result.materials = rawMaterials
           .map(line => {
             // 리스트 항목 형식 제거
-            line = line.replace(/^[•\-\*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim();
+            line = line.replace(/^[•\-*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim();
             // HTML 태그 제거 (<br> 등)
             line = line.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
             return line;
           })
-          .filter(line => line && !line.startsWith('#') && line.length > 2 && !line.match(/^[•\-\*]\s*$/));
+          .filter(line => line && !line.startsWith('#') && line.length > 2 && !line.match(/^[•\-*]\s*$/));
         
         console.log('[parseFinalContent] Materials found:', result.materials.length);
         if (result.materials.length > 0) break;
@@ -208,8 +208,8 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
       if (assessmentMatch) {
         result.assessment.methods = assessmentMatch[1]
           .split('\n')
-          .map(line => line.replace(/^[•\-\*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim())
-          .filter(line => line && !line.startsWith('#') && line.length > 3 && !line.match(/^[•\-\*]\s*$/));
+          .map(line => line.replace(/^[•\-*]\s*/, '').replace(/^\d+[.)]\s*/, '').trim())
+          .filter(line => line && !line.startsWith('#') && line.length > 3 && !line.match(/^[•\-*]\s*$/));
         if (result.assessment.methods.length > 0) break;
       }
     }
@@ -447,7 +447,7 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
               const activities = stepContent
                 .split('\n')
                 .map(line => {
-                  line = line.replace(/^[\s\-•\*]\s*/, '').trim();
+                  line = line.replace(/^[\s\-•*]\s*/, '').trim();
                   return line;
                 })
                 .filter(line => line && !line.startsWith('#') && line.length > 2)
@@ -522,11 +522,11 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
                     activity: activityMatch[1].trim(),
                     desc: descMatch ? descMatch[1].trim() : undefined,
                   });
-                } else if (trimmedLine.length > 5 && !trimmedLine.match(/^[\d.\-•\*]\s*$/)) {
+                } else if (trimmedLine.length > 5 && !trimmedLine.match(/^[\d.\-•*]\s*$/)) {
                   // 활동 매칭이 안 되면 전체 줄을 활동으로 사용
                   activities.push({
                     time: timeMatch ? `${timeMatch[1]}분` : undefined,
-                    activity: trimmedLine.replace(/^[\d.\-•\*]\s*/, '').trim(),
+                    activity: trimmedLine.replace(/^[\d.\-•*]\s*/, '').trim(),
                   });
                 }
               }
@@ -575,7 +575,7 @@ const parseFinalContent = (content: string): ParsedCurriculum => {
     const sectionMatches = content.matchAll(/##\s*([^\n]+)/g);
     const sectionTitles: string[] = [];
     for (const match of sectionMatches) {
-      let title = match[1].trim().replace(/^#+\s*/, '').trim();
+      const title = match[1].trim().replace(/^#+\s*/, '').trim();
       // 주요 섹션만 추출
       if (title && title.match(/^(커리큘럼|수업안|슬라이드|평가|퀴즈|최종)/i)) {
         sectionTitles.push(title);

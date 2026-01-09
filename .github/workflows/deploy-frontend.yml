@@ -56,10 +56,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+          npm rebuild
 
       - name: Run linter
         run: npm run lint
@@ -81,8 +83,9 @@ jobs:
 
       - name: Build for staging
         if: steps.set-env.outputs.environment == 'staging'
-        run: npm run build -- --mode staging
+        run: npm run build
         env:
+          VITE_APP_ENV: staging
           VITE_AZURE_FUNCTIONS_URL: ${{ secrets.AZURE_FUNCTIONS_URL_STAGING }}
           VITE_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID_STAGING }}
           VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
@@ -90,8 +93,9 @@ jobs:
 
       - name: Build for production
         if: steps.set-env.outputs.environment == 'production'
-        run: npm run build -- --mode production
+        run: npm run build
         env:
+          VITE_APP_ENV: production
           VITE_AZURE_FUNCTIONS_URL: ${{ secrets.AZURE_FUNCTIONS_URL_PROD }}
           VITE_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID_PROD }}
           VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}

@@ -25,7 +25,7 @@ export interface DatabaseConfig {
 }
 
 export interface TransactionClient {
-  query: <T = any>(text: string, params?: any[]) => Promise<QueryResult<T>>;
+  query: <T = unknown>(text: string, params?: unknown[]) => Promise<QueryResult<T>>;
   release: () => void;
 }
 
@@ -123,10 +123,10 @@ export async function closeAllPools(): Promise<void> {
 /**
  * 단일 쿼리 실행
  */
-export async function query<T = any>(
+export async function query<T = unknown>(
   serviceName: string,
   text: string,
-  params?: any[]
+  params?: unknown[]
 ): Promise<QueryResult<T>> {
   const pool = getPool(serviceName);
   const start = Date.now();
@@ -172,10 +172,10 @@ export async function withTransaction<T>(
 /**
  * 단일 행 조회
  */
-export async function queryOne<T = any>(
+export async function queryOne<T = unknown>(
   serviceName: string,
   text: string,
-  params?: any[]
+  params?: unknown[]
 ): Promise<T | null> {
   const result = await query<T>(serviceName, text, params);
   return result.rows[0] ?? null;
@@ -184,10 +184,10 @@ export async function queryOne<T = any>(
 /**
  * 여러 행 조회
  */
-export async function queryMany<T = any>(
+export async function queryMany<T = unknown>(
   serviceName: string,
   text: string,
-  params?: any[]
+  params?: unknown[]
 ): Promise<T[]> {
   const result = await query<T>(serviceName, text, params);
   return result.rows;

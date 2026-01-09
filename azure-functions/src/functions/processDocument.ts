@@ -210,10 +210,11 @@ export async function processDocument(
         },
       };
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     context.error('[ProcessDocument] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (error.message === 'Unauthorized') {
+    if (errorMessage === 'Unauthorized') {
       return {
         status: 401,
         jsonBody: { error: 'Unauthorized' },
@@ -222,7 +223,7 @@ export async function processDocument(
 
     return {
       status: 500,
-      jsonBody: { error: error.message || 'Internal server error' },
+      jsonBody: { error: errorMessage || 'Internal server error' },
     };
   }
 }
