@@ -98,10 +98,26 @@ services:
     networks:
       - landing-page-pro-network
 
+  # Portainer (Docker 관리 UI)
+  portainer:
+    image: portainer/portainer-ce:2.21.5
+    container_name: landing-page-pro-portainer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - landing-page-pro-network
+
 volumes:
   postgres_data:
     driver: local
   azurite_data:
+    driver: local
+  portainer_data:
     driver: local
 
 networks:

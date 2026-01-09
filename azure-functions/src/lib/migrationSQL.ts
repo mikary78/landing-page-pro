@@ -97,11 +97,21 @@ CREATE TABLE IF NOT EXISTS project_stages (
   content TEXT,
   status VARCHAR(20) DEFAULT 'pending',
   order_index INTEGER NOT NULL,
+  -- 선택 AI 모델 구분(레거시 processDocument/코스 빌더 호환)
+  ai_model VARCHAR(50) DEFAULT 'gemini',
+  -- 표시/정렬용 별도 순서(레거시 호환). 없으면 order_index를 사용합니다.
+  stage_order INTEGER,
   feedback TEXT,
   regeneration_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 기존 DB(이미 생성된 project_stages)에 컬럼을 공식 경로로 보강
+ALTER TABLE project_stages ADD COLUMN IF NOT EXISTS ai_model VARCHAR(50) DEFAULT 'gemini';
+ALTER TABLE project_stages ADD COLUMN IF NOT EXISTS stage_order INTEGER;
+UPDATE project_stages SET ai_model = 'gemini' WHERE ai_model IS NULL;
+UPDATE project_stages SET stage_order = order_index WHERE stage_order IS NULL;
 
 DO $$ BEGIN
   ALTER TABLE project_stages ADD CONSTRAINT fk_project_stages_project_id
@@ -113,6 +123,7 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_project_stages_project_id ON project_stages(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_stages_status ON project_stages(status);
 CREATE INDEX IF NOT EXISTS idx_project_stages_order ON project_stages(project_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_project_stages_ai_model ON project_stages(project_id, ai_model);
 
 -- 2.5 project_ai_results (AI 호출 결과)
 CREATE TABLE IF NOT EXISTS project_ai_results (
