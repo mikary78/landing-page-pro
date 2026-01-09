@@ -1,0 +1,48 @@
+# ============================================
+# Kustomize Staging Overlay
+# ============================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: landing-page-pro-staging
+
+resources:
+  - ../../base
+
+namePrefix: staging-
+
+commonLabels:
+  environment: staging
+
+# 이미지 태그 오버라이드
+images:
+  - name: ${ACR_LOGIN_SERVER}/project-service
+    newTag: staging
+  - name: ${ACR_LOGIN_SERVER}/course-service
+    newTag: staging
+  - name: ${ACR_LOGIN_SERVER}/ai-service
+    newTag: staging
+
+# 리소스 제한 패치
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: project-service
+      spec:
+        replicas: 1
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: course-service
+      spec:
+        replicas: 1
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ai-service
+      spec:
+        replicas: 1

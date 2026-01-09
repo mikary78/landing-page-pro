@@ -1,0 +1,79 @@
+# ============================================
+# Kustomize Production Overlay
+# ============================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: landing-page-pro
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: production
+
+# 이미지 태그 오버라이드
+images:
+  - name: ${ACR_LOGIN_SERVER}/project-service
+    newTag: latest
+  - name: ${ACR_LOGIN_SERVER}/course-service
+    newTag: latest
+  - name: ${ACR_LOGIN_SERVER}/ai-service
+    newTag: latest
+
+# 프로덕션 환경 리소스 패치
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: project-service
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: project-service
+                resources:
+                  requests:
+                    cpu: "200m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "1000m"
+                    memory: "1Gi"
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: course-service
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: course-service
+                resources:
+                  requests:
+                    cpu: "200m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "1000m"
+                    memory: "1Gi"
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ai-service
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: ai-service
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2000m"
+                    memory: "2Gi"
