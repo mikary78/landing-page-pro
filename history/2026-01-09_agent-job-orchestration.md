@@ -46,7 +46,7 @@
 - `Dockerfile.frontend`: Node 22 기반 + Linux optional deps 문제 회피
 
 ## 향후 작업
-- `web_search` step: 실제 검색 provider 연결(예: Bing/SerpAPI 등) + 출처 저장
-- `design_assets` step: 이미지 생성 provider 연결(OpenAI/Google 등) + assets 필드에 저장 후 프리뷰(canvas) 렌더링
-- 프리뷰: Markdown 렌더링/슬라이드 캔버스 렌더링(현재는 텍스트/JSON)
+- `web_search` step: Tavily/Serper 기반 검색(옵션) + 출처를 `generation_steps.output.sources` 및 `generation_artifacts.assets.sources`에 저장
+- `design_assets` step: OpenAI 이미지 생성(옵션, `OPENAI_API_KEY` 필요)으로 배경 이미지 생성 후 `generation_artifacts.assets.background`에 저장
+- 프리뷰: 인포그래픽/슬라이드를 `<canvas>`로 렌더링 (배경/팔레트 반영, 출처 링크 표시)
 

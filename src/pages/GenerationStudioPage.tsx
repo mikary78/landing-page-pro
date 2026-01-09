@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { InfographicCanvas } from "@/components/studio/InfographicCanvas";
+import { SlidesCanvas } from "@/components/studio/SlidesCanvas";
 
 interface Project {
   id: string;
@@ -81,6 +83,12 @@ export default function GenerationStudioPage() {
     for (const a of jobState.artifacts) map.set(a.artifact_type, a);
     return map;
   }, [jobState.artifacts]);
+
+  const webSources = useMemo(() => {
+    const webStep = jobState.steps.find((s: any) => s.step_type === "web_search" && s.status === "completed");
+    const sources = webStep?.output?.sources;
+    return Array.isArray(sources) ? sources : [];
+  }, [jobState.steps]);
 
   const statusBadge = (status?: string) => {
     const s = status || "unknown";
@@ -205,11 +213,24 @@ export default function GenerationStudioPage() {
                     <div className="text-xs text-muted-foreground mb-3">
                       {artifactsByType.get("infographic") ? statusBadge(artifactsByType.get("infographic")?.status) : "선택되지 않음"}
                     </div>
-                    <pre className="whitespace-pre-wrap text-sm leading-6">
-                      {artifactsByType.get("infographic")?.content_json
-                        ? JSON.stringify(artifactsByType.get("infographic")?.content_json, null, 2)
-                        : "인포그래픽 산출물이 아직 없습니다."}
-                    </pre>
+                    <InfographicCanvas
+                      data={artifactsByType.get("infographic")?.content_json}
+                      assets={artifactsByType.get("infographic")?.assets}
+                    />
+                    {webSources.length > 0 && (
+                      <div className="mt-4">
+                        <div className="text-xs text-muted-foreground mb-2">참고 출처</div>
+                        <ul className="text-xs space-y-1 list-disc pl-5">
+                          {webSources.slice(0, 6).map((s: any) => (
+                            <li key={s.url}>
+                              <a className="underline" href={s.url} target="_blank" rel="noreferrer">
+                                {s.title || s.url}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -218,11 +239,24 @@ export default function GenerationStudioPage() {
                     <div className="text-xs text-muted-foreground mb-3">
                       {artifactsByType.get("slides") ? statusBadge(artifactsByType.get("slides")?.status) : "선택되지 않음"}
                     </div>
-                    <pre className="whitespace-pre-wrap text-sm leading-6">
-                      {artifactsByType.get("slides")?.content_json
-                        ? JSON.stringify(artifactsByType.get("slides")?.content_json, null, 2)
-                        : "슬라이드 산출물이 아직 없습니다."}
-                    </pre>
+                    <SlidesCanvas
+                      data={artifactsByType.get("slides")?.content_json}
+                      assets={artifactsByType.get("slides")?.assets}
+                    />
+                    {webSources.length > 0 && (
+                      <div className="mt-4">
+                        <div className="text-xs text-muted-foreground mb-2">참고 출처</div>
+                        <ul className="text-xs space-y-1 list-disc pl-5">
+                          {webSources.slice(0, 6).map((s: any) => (
+                            <li key={s.url}>
+                              <a className="underline" href={s.url} target="_blank" rel="noreferrer">
+                                {s.title || s.url}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>

@@ -63,6 +63,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Web Search (optional)
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      SERPER_API_KEY: ${SERPER_API_KEY}
     ports:
       - "${FUNCTIONS_PORT:-7071}:80"
     depends_on:
