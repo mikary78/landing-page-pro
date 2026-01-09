@@ -9,9 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-// import { supabase } from "@/integrations/supabase/client";
-// import { Enums } from "@/integrations/supabase/types";
-// import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Supabase 타입 대신 직접 정의
 type AppRole = "admin" | "moderator" | "user";
@@ -36,31 +34,21 @@ export const useUserRole = (userId?: string): UseUserRoleResult => {
 
     try {
       setLoading(true);
-      
-      // TODO: Azure Functions API로 사용자 역할 가져오기
-      // 현재는 Supabase 연결이 불가능하므로 기본값 반환
-      // 
-      // 예시:
-      // const { data, error } = await callAzureFunction('/api/getUserRoles', 'GET');
-      // if (error) throw error;
-      // setRoles(data.roles || []);
-      
-      // 임시: 빈 배열 반환 (에러 없이 처리)
-      // User roles API 미구현 - 빈 배열 반환
-      setRoles([]);
-      
-      // Supabase 호출 제거 (Azure 인증 전환으로 연결 불가)
-      // const { data, error } = await supabase
-      //   .from("user_roles")
-      //   .select("role")
-      //   .eq("user_id", userId);
-      // 
-      // if (error) {
-      //   throw error;
-      // }
-      // 
-      // const mappedRoles = (data || []).map((row) => row.role as AppRole);
-      // setRoles(mappedRoles);
+
+      // NOTE:
+      // - Admin 페이지/기존 기능에서 Supabase를 사용하고 있어 역할 조회도 Supabase로 수행합니다.
+      // - Supabase 연결이 불가능한 환경(예: Azure Auth 전환 중)에서는 catch로 떨어져 빈 roles를 반환합니다.
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      if (error) {
+        throw error;
+      }
+
+      const mappedRoles = (data || []).map((row: any) => row.role as AppRole);
+      setRoles(mappedRoles);
     } catch (error) {
       // 에러를 조용히 처리 (Supabase 연결 실패는 예상된 동작)
       console.warn('[useUserRole] Failed to fetch user roles (expected with Azure auth):', error);

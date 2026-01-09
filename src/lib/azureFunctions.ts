@@ -5,6 +5,7 @@
 
 import { msalInstance } from '@/components/AuthProvider';
 import { apiRequest } from '@/config/authConfig';
+import { buildAzureFunctionsUrl } from '@/lib/azureFunctionsUrl';
 
 const AZURE_FUNCTIONS_URL = import.meta.env.VITE_AZURE_FUNCTIONS_URL || 'http://localhost:7071';
 
@@ -83,7 +84,7 @@ async function callAzureFunction<T = any>(
   try {
     const accessToken = await getAccessToken();
 
-    const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
+    const url = buildAzureFunctionsUrl(AZURE_FUNCTIONS_URL, endpoint);
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -267,6 +268,55 @@ export async function getGenerationJob(
   );
 }
 
+export interface GenerationChatRequest {
+  projectId: string;
+  message: string;
+  targets?: {
+    document?: boolean;
+    infographic?: boolean;
+    slides?: boolean;
+  };
+  aiModel?: 'gemini' | 'claude' | 'chatgpt';
+}
+
+export interface GenerationChatResponse {
+  success: boolean;
+  assistantMessage?: string;
+  action?: any;
+}
+
+export async function generationChat(
+  request: GenerationChatRequest
+): Promise<{ data: GenerationChatResponse | null; error: Error | null }> {
+  return callAzureFunction<GenerationChatResponse>(
+    `/api/generation/chat`,
+    'POST',
+    request
+  );
+}
+
+export interface CancelGenerationJobRequest {
+  projectId?: string;
+  jobId?: string;
+  reason?: string;
+}
+
+export interface CancelGenerationJobResponse {
+  success: boolean;
+  jobId?: string;
+  status?: string;
+}
+
+export async function cancelGenerationJob(
+  request: CancelGenerationJobRequest
+): Promise<{ data: CancelGenerationJobResponse | null; error: Error | null }> {
+  return callAzureFunction<CancelGenerationJobResponse>(
+    `/api/generation/cancel`,
+    'POST',
+    request
+  );
+}
+
 // ============================================================
 // Generate Curriculum Function
 // ============================================================
@@ -327,7 +377,7 @@ export async function callAzureFunctionUnauthenticated<T = any>(
   body?: any
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
+    const url = buildAzureFunctionsUrl(AZURE_FUNCTIONS_URL, endpoint);
     const options: RequestInit = {
       method,
       headers: {

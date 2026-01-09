@@ -6,7 +6,11 @@ export type GenerationStepType =
   | 'generate_document'
   | 'generate_infographic'
   | 'generate_slides'
-  | 'design_assets';
+  | 'design_assets'
+  // Chat-driven revisions (added dynamically by generation/chat)
+  | 'revise_document'
+  | 'revise_infographic'
+  | 'revise_slides';
 
 export interface GenerationOptions {
   enableWebSearch?: boolean;

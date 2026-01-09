@@ -41,6 +41,7 @@ async function runStep(
   projectId: string,
   documentContent: string,
   options: GenerationOptions,
+  stepInput: any,
   contextState: { interpret?: any; web?: { queries: string[]; results: WebSearchResult[] } },
   existingArtifacts: { infographic?: any; slides?: any },
   context: InvocationContext
@@ -177,6 +178,72 @@ async function runStep(
     };
   }
 
+  if (stepType === 'revise_document') {
+    const instruction = (stepInput?.instruction || '').toString().trim();
+    const sources = normalizeSources(contextState.web?.results || []).slice(0, 8);
+
+    const system = `당신은 교육 문서 편집자입니다. 기존 강의안(문서)을 사용자의 편집 지시문에 맞게 수정하세요.
+출력은 Markdown만 반환하세요.
+규칙:
+- 출처가 주어지면 사실/통계 주장에는 [n] 인용을 포함
+- 문서 말미에 ## Sources 섹션 유지/갱신(제공된 출처만, 임의 URL 생성 금지)`;
+
+    const sourcesBlock =
+      sources.length > 0
+        ? `\n\n[출처 목록 - 제공된 URL만 사용]\n${sources
+            .map((s, i) => `[${i + 1}] ${s.title ? `${s.title} - ` : ''}${s.url}`)
+            .join('\n')}\n`
+        : `\n\n[출처 목록]\n(없음)\n`;
+
+    const prompt = `편집 지시문:\n${instruction || '(없음)'}\n\n기존 문서(참고):\n${stepInput?.existingDocument || ''}\n\n요구사항:\n- 기존 문서의 구조/톤을 가능한 유지\n- 지시문을 우선 반영\n- Sources 섹션 필수\n\n형식: Markdown${sourcesBlock}`;
+
+    let md = await generateContent(aiModel, prompt, system);
+    md = ensureSourcesSectionMarkdown(md, sources);
+
+    return {
+      log: '강의안(문서) 수정 완료',
+      artifacts: [{ type: 'document', contentText: md, markCompleted: true }],
+    };
+  }
+
+  if (stepType === 'revise_infographic') {
+    const instruction = (stepInput?.instruction || '').toString().trim();
+    const system = `당신은 인포그래픽 편집자입니다. 기존 인포그래픽 JSON을 사용자의 편집 지시문에 맞게 수정하세요. JSON만 반환하세요.`;
+    const prompt = `편집 지시문:\n${instruction || '(없음)'}\n\n기존 인포그래픽(JSON):\n${JSON.stringify(
+      existingArtifacts.infographic || {},
+      null,
+      2
+    )}\n\n출력: 수정된 JSON`;
+    const text = await generateContent(aiModel, prompt, system);
+    const json = safeJsonParse<any>(text) ?? { raw: text };
+    return {
+      log: '인포그래픽 수정 완료',
+      artifacts: [{ type: 'infographic', contentJson: json, markCompleted: true }],
+    };
+  }
+
+  if (stepType === 'revise_slides') {
+    const instruction = (stepInput?.instruction || '').toString().trim();
+    const sources = normalizeSources(contextState.web?.results || []).slice(0, 8);
+
+    const system = `당신은 교안 슬라이드 편집자입니다. 기존 슬라이드 덱 JSON을 사용자의 편집 지시문에 맞게 수정하세요. JSON만 반환하세요.
+규칙:
+- 출처가 주어지면 speakerNotes에 [n] 인용 유지/추가
+- 제공된 [1]..[n]만 사용(임의 URL/번호 생성 금지)`;
+    const prompt = `편집 지시문:\n${instruction || '(없음)'}\n\n기존 슬라이드 덱(JSON):\n${JSON.stringify(
+      existingArtifacts.slides || {},
+      null,
+      2
+    )}\n\n출력: 수정된 JSON`;
+    const text = await generateContent(aiModel, prompt, system);
+    let json = safeJsonParse<any>(text) ?? { raw: text };
+    json = enforceSlideCitationsAndDeckSources(json, sources);
+    return {
+      log: '슬라이드 수정 완료',
+      artifacts: [{ type: 'slides', contentJson: json, markCompleted: true }],
+    };
+  }
+
   if (stepType === 'design_assets') {
     if (!options.enableImageGeneration) {
       return { log: '이미지 생성 비활성화(옵션)', output: { skipped: true } };
@@ -230,7 +297,7 @@ export async function generationJobWorker(queueItem: unknown, context: Invocatio
     const job = jobRes.rows[0];
 
     // 완료/실패면 종료
-    if (job.status === 'completed' || job.status === 'failed') {
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
       context.log(`[GenerationJobWorker] Job already ${job.status}: ${jobId}`);
       return;
     }
@@ -262,6 +329,7 @@ export async function generationJobWorker(queueItem: unknown, context: Invocatio
     const stepId = step.id as string;
     const stepType = step.step_type as GenerationStepType;
     const stepOrderIndex = Number(step.order_index ?? 0);
+    const stepInput = typeof step.input === 'string' ? safeJsonParse<any>(step.input) : step.input;
 
     // step 시작
     await client.query(
@@ -302,12 +370,20 @@ export async function generationJobWorker(queueItem: unknown, context: Invocatio
         )
       ).rows[0]?.content_json;
 
+      const existingDocument = (
+        await client.query(
+          `SELECT content_text FROM generation_artifacts WHERE job_id = $1 AND artifact_type = 'document' LIMIT 1`,
+          [jobId]
+        )
+      ).rows[0]?.content_text;
+
       const result = await runStep(
         stepType,
         aiModel,
         projectId,
         documentContent,
         options,
+        { ...(stepInput || {}), existingDocument },
         { interpret: interpretOutput, web: { queries: webQueries, results: webSources } },
         { infographic: existingInfographic, slides: existingSlides },
         context

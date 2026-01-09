@@ -45,3 +45,5 @@ import './functions/addAiModelColumn';
 import './functions/startGenerationJob';
 import './functions/getGenerationJob';
 import './functions/generationJobWorker';
+import './functions/generationChat';
+import './functions/cancelGenerationJob';
