@@ -56,12 +56,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install dependencies
         run: |
-          npm ci || npm install
-          npm install @rollup/rollup-linux-x64-gnu @swc/core-linux-x64-gnu --save-optional || true
+          rm -rf node_modules package-lock.json
+          npm install
+          npm rebuild
 
       - name: Run linter
         run: npm run lint
