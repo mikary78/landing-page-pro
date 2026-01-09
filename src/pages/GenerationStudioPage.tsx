@@ -90,6 +90,11 @@ export default function GenerationStudioPage() {
     return Array.isArray(sources) ? sources : [];
   }, [jobState.steps]);
 
+  const slidesDeckSources = useMemo(() => {
+    const s = artifactsByType.get("slides")?.content_json?.sources;
+    return Array.isArray(s) ? s : [];
+  }, [artifactsByType]);
+
   const statusBadge = (status?: string) => {
     const s = status || "unknown";
     const variant =
@@ -243,17 +248,19 @@ export default function GenerationStudioPage() {
                       data={artifactsByType.get("slides")?.content_json}
                       assets={artifactsByType.get("slides")?.assets}
                     />
-                    {webSources.length > 0 && (
+                    {(slidesDeckSources.length > 0 || webSources.length > 0) && (
                       <div className="mt-4">
                         <div className="text-xs text-muted-foreground mb-2">참고 출처</div>
                         <ul className="text-xs space-y-1 list-disc pl-5">
-                          {webSources.slice(0, 6).map((s: any) => (
-                            <li key={s.url}>
-                              <a className="underline" href={s.url} target="_blank" rel="noreferrer">
-                                {s.title || s.url}
-                              </a>
-                            </li>
-                          ))}
+                          {(slidesDeckSources.length > 0 ? slidesDeckSources : webSources)
+                            .slice(0, 8)
+                            .map((s: any) => (
+                              <li key={s.url}>
+                                <a className="underline" href={s.url} target="_blank" rel="noreferrer">
+                                  {s.title || s.url}
+                                </a>
+                              </li>
+                            ))}
                         </ul>
                       </div>
                     )}

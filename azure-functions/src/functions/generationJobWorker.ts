@@ -15,6 +15,7 @@ import { generateContent } from '../lib/ai-services';
 import { planGenerationSteps, RequestedOutputs, GenerationOptions, GenerationStepType } from '../lib/agent/plan';
 import { webSearch, WebSearchResult } from '../lib/web-search';
 import { generateImageDataUrl } from '../lib/image-generation';
+import { ensureSourcesSectionMarkdown, enforceSlideCitationsAndDeckSources, normalizeSources } from '../lib/citations';
 
 const jobQueueOutput = output.storageQueue({
   queueName: 'generation-jobs',
@@ -32,72 +33,6 @@ function safeJsonParse<T>(value: any): T | null {
   } catch {
     return null;
   }
-}
-
-function normalizeSources(sources: any[]): Array<{ title?: string; url: string }> {
-  const out: Array<{ title?: string; url: string }> = [];
-  for (const s of sources || []) {
-    const url = s?.url;
-    if (typeof url !== 'string' || !url.trim()) continue;
-    const title = typeof s?.title === 'string' ? s.title : undefined;
-    out.push({ title, url: url.trim() });
-  }
-  // url 기준 dedupe
-  const seen = new Set<string>();
-  return out.filter((s) => {
-    if (seen.has(s.url)) return false;
-    seen.add(s.url);
-    return true;
-  });
-}
-
-function ensureSourcesSectionMarkdown(md: string, sources: Array<{ title?: string; url: string }>): string {
-  const hasSourcesHeader = /\n##\s*Sources\s*\n/i.test(md) || /\n##\s*출처\s*\n/i.test(md);
-  if (hasSourcesHeader) return md;
-
-  const lines =
-    sources.length > 0
-      ? sources.map((s, i) => `- [${i + 1}] ${s.title ? `${s.title} - ` : ''}${s.url}`)
-      : ['- (웹 검색 결과가 없습니다. `TAVILY_API_KEY` 또는 `SERPER_API_KEY` 설정을 확인하세요.)'];
-
-  return `${md.trim()}\n\n## Sources\n${lines.join('\n')}\n`;
-}
-
-function enforceSlideCitations(slidesJson: any, sources: Array<{ title?: string; url: string }>): any {
-  if (!slidesJson || typeof slidesJson !== 'object') return slidesJson;
-  const slides = Array.isArray(slidesJson.slides) ? slidesJson.slides : [];
-  if (!slides.length) return slidesJson;
-
-  // sources가 있으면 최소 [1]은 speakerNotes에 들어가도록 보강
-  if (sources.length > 0) {
-    for (const slide of slides) {
-      if (!slide || typeof slide !== 'object') continue;
-      const notes = typeof slide.speakerNotes === 'string' ? slide.speakerNotes : '';
-      const hasCitation = /\[\d+\]/.test(notes);
-      if (!hasCitation) {
-        slide.speakerNotes = `${notes ? `${notes}\n\n` : ''}Sources: [1]`;
-      }
-    }
-    // 덱 레벨 sources도 추가(있으면 유지)
-    if (!Array.isArray(slidesJson.sources)) {
-      slidesJson.sources = sources.map((s, i) => ({ id: i + 1, title: s.title, url: s.url }));
-    }
-  } else {
-    // sources가 없으면 speakerNotes에 "출처 없음" 안내를 남깁니다.
-    for (const slide of slides) {
-      if (!slide || typeof slide !== 'object') continue;
-      const notes = typeof slide.speakerNotes === 'string' ? slide.speakerNotes : '';
-      const hasSourcesLine = /Sources\s*:/i.test(notes);
-      if (!hasSourcesLine) {
-        slide.speakerNotes = `${notes ? `${notes}\n\n` : ''}Sources: (웹 검색 결과 없음 - TAVILY_API_KEY/SERPER_API_KEY 미설정 가능)`;
-      }
-    }
-    if (!Array.isArray(slidesJson.sources)) {
-      slidesJson.sources = [];
-    }
-  }
-
-  return slidesJson;
 }
 
 async function runStep(
@@ -235,7 +170,7 @@ async function runStep(
 
     const text = await generateContent(aiModel, prompt, system);
     let json = safeJsonParse<any>(text) ?? { raw: text };
-    json = enforceSlideCitations(json, sources);
+    json = enforceSlideCitationsAndDeckSources(json, sources);
     return {
       log: '슬라이드 설계 생성 완료',
       artifacts: [{ type: 'slides', contentJson: json, markCompleted: true }],

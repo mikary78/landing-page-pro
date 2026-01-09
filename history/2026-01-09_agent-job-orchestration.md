@@ -50,12 +50,18 @@
 - `design_assets` step: OpenAI 이미지 생성(옵션, `OPENAI_API_KEY` 필요)으로 배경 이미지 생성 후 `generation_artifacts.assets.background`에 저장
 - 프리뷰: 인포그래픽/슬라이드를 `<canvas>`로 렌더링 (배경/팔레트 반영, 출처 링크 표시)
 
+## 2026-01-09 추가: 강제 인용(Forced Citation)
+- 문서(`generate_document`)
+  - 출처가 있으면 본문에 `[1]` 형태 인용을 포함하도록 **시스템 프롬프트 규칙 강화**
+  - LLM 응답에 `## Sources`가 빠져도 서버가 **후처리로 Sources 섹션 자동 추가**
+  - 출처가 없으면 `## Sources`에 **웹검색 미설정 안내**를 자동 추가
+- 슬라이드(`generate_slides`)
+  - 출처가 있으면 각 슬라이드 `speakerNotes`에 **최소 1개 이상의 `[n]` 인용 강제**
+  - 출처가 없어도 `speakerNotes`에 `Sources: (웹 검색 결과 없음...)` **안내 문구 강제**(운영에서 키 미설정 시 빠른 진단용)
 
-## 2026-01-09 異붽?: 媛뺤젣 ?몄슜(Forced Citation)
-- 臾몄꽌(`generate_document`)
-  - 異쒖쿂媛 ?덉쑝硫?蹂몃Ц??`[1]` ?뺥깭 ?몄슜???ы븿?섎룄濡?**?쒖뒪???꾨＼?꾪듃 洹쒖튃 媛뺥솕**
-  - LLM ?묐떟??`## Sources`媛 鍮좎졇???쒕쾭媛 **?꾩쿂由щ줈 Sources ?뱀뀡 ?먮룞 異붽?**
-  - 異쒖쿂媛 ?놁쑝硫?`## Sources`??**?밴???誘몄꽕???덈궡**瑜??먮룞 異붽?
-- ?щ씪?대뱶(`generate_slides`)
-  - 異쒖쿂媛 ?덉쑝硫?媛??щ씪?대뱶 `speakerNotes`??**理쒖냼 1媛??댁긽??`[n]` ?몄슜 媛뺤젣**
-  - 異쒖쿂媛 ?놁뼱??`speakerNotes`??`Sources: (??寃??寃곌낵 ?놁쓬...)` **?덈궡 臾멸뎄 媛뺤젣**(?댁쁺?먯꽌 ??誘몄꽕????鍮좊Ⅸ 吏꾨떒??
+## 2026-01-09 Plan B: 슬라이드 Deck Sources 표준화 + UI 렌더링
+- Backend
+  - 슬라이드 산출물 JSON에 `sources: [{ id, title?, url }]`를 **항상 포함**하도록 표준화(출처가 없으면 빈 배열).
+  - speakerNotes의 인용/안내는 유지하면서, UI가 deck-level sources를 단일 진실로 사용 가능.
+- Frontend
+  - Studio 슬라이드 탭에서 `slides.content_json.sources`를 우선 렌더링하고, 없을 때만 `web_search` step의 sources로 fallback.
