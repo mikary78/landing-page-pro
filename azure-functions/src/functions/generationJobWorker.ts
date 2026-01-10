@@ -144,7 +144,7 @@ async function runStep(
     const sources = contextState.web?.results?.length ? contextState.web.results.slice(0, 6) : [];
     const prompt = `사용자 입력:\n${documentContent}\n\n가능하면 아래 출처를 참고하여 최신 트렌드 키워드를 반영하세요(출처 URL은 JSON의 sources 배열로 포함):\n${sources
       .map((s) => `- ${s.url}`)
-      .join('\n')}\n\nJSON 스키마:\n{\n  \"title\": \"...\",\n  \"subtitle\": \"...\",\n  \"sections\": [\n    {\"heading\":\"...\",\"bullets\":[\"...\"],\"iconHint\":\"...\"}\n  ],\n  \"palette\": [\"#...\"],\n  \"illustrationHints\": [\"...\"],\n  \"sources\": [\"https://...\"]\n}`;
+      .join('\n')}\n\nJSON 스키마:\n{\n  "title": "...",\n  "subtitle": "...",\n  "sections": [\n    {"heading":"...","bullets":["..."],"iconHint":"..."}\n  ],\n  "palette": ["#..."],\n  "illustrationHints": ["..."],\n  "sources": ["https://..."]\n}`;
     const text = await generateContent(aiModel, prompt, system);
     const json = safeJsonParse<any>(text) ?? { raw: text };
     return {

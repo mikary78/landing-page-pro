@@ -21,6 +21,8 @@ export default defineConfig({
       '**/dist/**',
       '**/e2e/**',
       '**/*.e2e.{test,spec}.{js,ts,jsx,tsx}',
+      '**/playwright/**',
+      '**/test/playwright/**',
     ],
     // webidl-conversions 에러를 무시하도록 설정
     // 이 에러는 Supabase 의존성 문제로 발생하며, 테스트 실행에는 영향 없음

@@ -115,7 +115,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: https://${{ secrets.AZURE_WEBAPP_NAME_STAGING }}.azurewebsites.net
 
     steps:
       - name: Download build artifact
@@ -146,7 +145,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://${{ secrets.AZURE_WEBAPP_NAME_PROD }}.azurewebsites.net
 
     steps:
       - name: Download build artifact

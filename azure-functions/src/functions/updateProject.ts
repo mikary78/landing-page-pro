@@ -64,7 +64,7 @@ export async function updateProject(
 
     // Build update query dynamically
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (title !== undefined) {
