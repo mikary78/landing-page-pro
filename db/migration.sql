@@ -1,9 +1,3 @@
-/**
- * Database Migration SQL
- * Embedded SQL script for creating database schema
- */
-
-export const migrationSQL = `
 -- ========================================================
 -- Azure SQL Migration Script
 -- From: Supabase PostgreSQL
@@ -453,4 +447,3 @@ ANALYZE project_stages;
 ANALYZE courses;
 ANALYZE course_modules;
 ANALYZE lessons;
-`;

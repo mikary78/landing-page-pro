@@ -61,6 +61,9 @@ export async function getProjects(
     };
   } catch (error) {
     context.error('[GetProjects] Error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return { status: 401, jsonBody: { success: false, error: 'Unauthorized' } };
+    }
     return {
       status: 500,
       jsonBody: {

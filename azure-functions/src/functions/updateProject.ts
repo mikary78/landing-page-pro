@@ -8,6 +8,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { requireAuth } from '../middleware/auth';
 import { query } from '../lib/database';
+import { isUuid } from '../lib/validation';
 
 interface UpdateProjectRequest {
   title?: string;
@@ -35,6 +36,10 @@ export async function updateProject(
           error: 'Project ID is required',
         },
       };
+    }
+
+    if (!isUuid(projectId)) {
+      return { status: 400, jsonBody: { success: false, error: 'Invalid projectId (UUID required)' } };
     }
 
     // Parse request body

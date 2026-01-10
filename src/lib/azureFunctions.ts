@@ -5,8 +5,21 @@
 
 import { msalInstance } from '@/components/AuthProvider';
 import { apiRequest } from '@/config/authConfig';
+import { buildAzureFunctionsUrl } from '@/lib/azureFunctionsUrl';
 
 const AZURE_FUNCTIONS_URL = import.meta.env.VITE_AZURE_FUNCTIONS_URL || 'http://localhost:7071';
+const DEBUG_AZURE_FUNCTIONS = import.meta.env.VITE_DEBUG_AZURE_FUNCTIONS === 'true';
+
+function redactUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    // Mask all query param values (e.g. code=, tokens, etc.)
+    u.searchParams.forEach((_v, k) => u.searchParams.set(k, '***'));
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
 
 // Token cache to prevent repeated token acquisition
 let cachedToken: string | null = null;
@@ -83,13 +96,29 @@ async function callAzureFunction<T = any>(
   try {
     const accessToken = await getAccessToken();
 
-    const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
+    const url = buildAzureFunctionsUrl(AZURE_FUNCTIONS_URL, endpoint);
+    if (DEBUG_AZURE_FUNCTIONS) {
+      console.debug(`[AzureFunctions] Request: ${method} ${redactUrl(url)} (endpoint=${endpoint})`);
+    }
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
+    } else {
+      // 개발 환경에서만 허용되는 Auth Bypass (로컬 테스트 편의)
+      if (import.meta.env.VITE_DEV_AUTH_BYPASS === 'true') {
+        const key = 'dev_auth_user_id';
+        let userId = localStorage.getItem(key);
+        if (!userId) {
+          userId = crypto.randomUUID();
+          localStorage.setItem(key, userId);
+        }
+        headers['x-dev-user-id'] = userId;
+        headers['x-dev-email'] = 'dev@example.com';
+        headers['x-dev-name'] = 'Dev User';
+      }
     }
 
     const options: RequestInit = {
@@ -105,7 +134,13 @@ async function callAzureFunction<T = any>(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Azure Function error: ${response.status} ${errorText}`);
+      const snippet = (errorText || '').slice(0, 800);
+      const msg = `Azure Function error: ${response.status} (url=${redactUrl(url)}) ${snippet}`;
+      if (DEBUG_AZURE_FUNCTIONS) {
+        console.error(`[AzureFunctions] HTTP ${response.status} for ${redactUrl(url)}`);
+        if (snippet) console.error(`[AzureFunctions] Response (first 800 chars):\n${snippet}`);
+      }
+      throw new Error(msg);
     }
 
     const data = await response.json();
@@ -154,6 +189,150 @@ export async function processDocument(
 ): Promise<{ data: ProcessDocumentResponse | null; error: Error | null }> {
   return callAzureFunction<ProcessDocumentResponse>(
     '/api/processDocument',
+    'POST',
+    request
+  );
+}
+
+// ============================================================
+// Agent Orchestration (Generation Job)
+// ============================================================
+
+export type GenerationOutputType = 'document' | 'infographic' | 'slides';
+
+export interface StartGenerationJobRequest {
+  projectId: string;
+  documentContent: string;
+  aiModel: 'gemini' | 'claude' | 'chatgpt';
+  outputs: {
+    document: boolean;
+    infographic: boolean;
+    slides: boolean;
+  };
+  options?: {
+    enableWebSearch?: boolean;
+    enableImageGeneration?: boolean;
+  };
+}
+
+export interface StartGenerationJobResponse {
+  success: boolean;
+  jobId: string;
+}
+
+export async function startGenerationJob(
+  request: StartGenerationJobRequest
+): Promise<{ data: StartGenerationJobResponse | null; error: Error | null }> {
+  return callAzureFunction<StartGenerationJobResponse>(
+    '/api/generation/start',
+    'POST',
+    request
+  );
+}
+
+export interface GenerationJobDto {
+  id: string;
+  project_id: string;
+  user_id: string;
+  ai_model: string;
+  requested_outputs: any;
+  options: any;
+  status: string;
+  current_step_index: number;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GenerationStepDto {
+  id: string;
+  job_id: string;
+  step_type: string;
+  title: string;
+  status: string;
+  order_index: number;
+  input?: any;
+  output?: any;
+  log?: string;
+  error?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GenerationArtifactDto {
+  id: string;
+  job_id: string;
+  artifact_type: GenerationOutputType;
+  status: string;
+  content_text?: string;
+  content_json?: any;
+  assets?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetGenerationJobResponse {
+  success: boolean;
+  job: GenerationJobDto | null;
+  steps: GenerationStepDto[];
+  artifacts: GenerationArtifactDto[];
+}
+
+export async function getGenerationJob(
+  projectId: string
+): Promise<{ data: GetGenerationJobResponse | null; error: Error | null }> {
+  return callAzureFunction<GetGenerationJobResponse>(
+    `/api/generation/job/${projectId}`,
+    'GET'
+  );
+}
+
+export interface GenerationChatRequest {
+  projectId: string;
+  message: string;
+  targets?: {
+    document?: boolean;
+    infographic?: boolean;
+    slides?: boolean;
+  };
+  aiModel?: 'gemini' | 'claude' | 'chatgpt';
+}
+
+export interface GenerationChatResponse {
+  success: boolean;
+  assistantMessage?: string;
+  action?: any;
+}
+
+export async function generationChat(
+  request: GenerationChatRequest
+): Promise<{ data: GenerationChatResponse | null; error: Error | null }> {
+  return callAzureFunction<GenerationChatResponse>(
+    `/api/generation/chat`,
+    'POST',
+    request
+  );
+}
+
+export interface CancelGenerationJobRequest {
+  projectId?: string;
+  jobId?: string;
+  reason?: string;
+}
+
+export interface CancelGenerationJobResponse {
+  success: boolean;
+  jobId?: string;
+  status?: string;
+}
+
+export async function cancelGenerationJob(
+  request: CancelGenerationJobRequest
+): Promise<{ data: CancelGenerationJobResponse | null; error: Error | null }> {
+  return callAzureFunction<CancelGenerationJobResponse>(
+    `/api/generation/cancel`,
     'POST',
     request
   );
@@ -219,7 +398,10 @@ export async function callAzureFunctionUnauthenticated<T = any>(
   body?: any
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    const url = `${AZURE_FUNCTIONS_URL}${endpoint}`;
+    const url = buildAzureFunctionsUrl(AZURE_FUNCTIONS_URL, endpoint);
+    if (DEBUG_AZURE_FUNCTIONS) {
+      console.debug(`[AzureFunctions] Unauth Request: ${method} ${redactUrl(url)} (endpoint=${endpoint})`);
+    }
     const options: RequestInit = {
       method,
       headers: {
@@ -235,11 +417,15 @@ export async function callAzureFunctionUnauthenticated<T = any>(
 
     if (!response.ok) {
       const errorText = await response.text();
-      const error = new Error(`Azure Function error: ${response.status} ${errorText}`);
+      const snippet = (errorText || '').slice(0, 800);
+      const error = new Error(`Azure Function error: ${response.status} (url=${redactUrl(url)}) ${snippet}`);
 
       // 401 오류는 예상된 동작이므로 콘솔에 로그하지 않음
       if (response.status !== 401) {
         console.error(`[AzureFunctions] Error calling ${endpoint}:`, error);
+        if (DEBUG_AZURE_FUNCTIONS && snippet) {
+          console.error(`[AzureFunctions] Response (first 800 chars):\n${snippet}`);
+        }
       }
 
       throw error;

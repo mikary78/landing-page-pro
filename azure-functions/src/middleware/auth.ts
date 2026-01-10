@@ -215,6 +215,33 @@ export async function authenticateRequest(
   context: InvocationContext
 ): Promise<{ userId: string; email: string; name: string } | null> {
   try {
+    // 개발 환경에서만 허용되는 Auth Bypass (UI/로컬 테스트 용도)
+    // - 조건: DEV_AUTH_BYPASS=true AND AZURE_FUNCTIONS_ENVIRONMENT=Development
+    // - 헤더: x-dev-user-id (UUID), x-dev-email, x-dev-name
+    const devBypassEnabled =
+      (process.env.DEV_AUTH_BYPASS || '').toLowerCase() === 'true' &&
+      (process.env.AZURE_FUNCTIONS_ENVIRONMENT || '').toLowerCase() === 'development';
+
+    if (devBypassEnabled) {
+      const devUserId = request.headers.get('x-dev-user-id');
+      if (devUserId) {
+        const uuidLike =
+          /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+            devUserId
+          );
+        if (!uuidLike) {
+          context.warn('[Auth] DEV_AUTH_BYPASS enabled but x-dev-user-id is not a UUID');
+          return null;
+        }
+
+        return {
+          userId: devUserId,
+          email: request.headers.get('x-dev-email') || 'dev@example.com',
+          name: request.headers.get('x-dev-name') || 'Dev User',
+        };
+      }
+    }
+
     const token = extractToken(request);
     if (!token) {
       context.log('[Auth] No token provided');

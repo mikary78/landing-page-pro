@@ -6,6 +6,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { requireAuth } from '../middleware/auth';
 import { query } from '../lib/database';
+import { isUuid } from '../lib/validation';
 
 export async function deleteProject(
   request: HttpRequest,
@@ -26,6 +27,10 @@ export async function deleteProject(
         status: 400,
         jsonBody: { success: false, error: 'Project ID is required' },
       };
+    }
+
+    if (!isUuid(projectId)) {
+      return { status: 400, jsonBody: { success: false, error: 'Invalid projectId (UUID required)' } };
     }
 
     // Verify project belongs to user

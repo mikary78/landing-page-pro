@@ -17,83 +17,17 @@ export async function runMigration(
 
     // Get database connection
     const pool = getPool();
-
-    // Split SQL into individual statements (simple split by semicolon)
-    // Filter out comments and empty lines
-    const statements = migrationSQL
-      .split(';')
-      .map((stmt) => stmt.trim())
-      .filter((stmt) => {
-        // Remove empty statements
-        if (!stmt) return false;
-        // Remove comment-only statements
-        if (stmt.startsWith('--')) return false;
-        return true;
-      });
-
-    context.log(`[Migration] Found ${statements.length} SQL statements to execute`);
-
-    const results: string[] = [];
-    let successCount = 0;
-    let skipCount = 0;
-    let errorCount = 0;
-
-    // Execute each statement
-    for (let i = 0; i < statements.length; i++) {
-      const stmt = statements[i];
-
-      // Skip comments
-      if (stmt.trim().startsWith('--')) {
-        continue;
-      }
-
-      try {
-        await pool.query(stmt);
-        successCount++;
-
-        // Log first 100 chars of statement
-        const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
-        context.log(`[Migration] ✓ Statement ${i + 1}: ${preview}...`);
-        results.push(`✓ ${preview}...`);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        // Check if error is due to already existing object
-        if (
-          errorMessage.includes('already exists') ||
-          errorMessage.includes('already defined') ||
-          errorMessage.includes('duplicate')
-        ) {
-          skipCount++;
-          const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
-          context.log(`[Migration] ⊘ Skipped ${i + 1} (already exists): ${preview}...`);
-          results.push(`⊘ Skipped: ${preview}...`);
-        } else {
-          errorCount++;
-          const preview = stmt.substring(0, 100).replace(/\s+/g, ' ');
-          context.error(`[Migration] ✗ Error in statement ${i + 1}: ${errorMessage}`);
-          context.error(`[Migration] Statement: ${preview}...`);
-          results.push(`✗ Error: ${preview}... - ${errorMessage}`);
-
-          // Don't stop on errors, continue with next statement
-        }
-      }
-    }
-
+    // NOTE:
+    // 기존 구현은 세미콜론 분리로 DO $$ ... $$ 블록을 깨뜨려 마이그레이션이 항상 실패할 수 있습니다.
+    // pg는 단일 query로 여러 statement 실행을 지원하므로 전체 스크립트를 한 번에 실행합니다.
+    await pool.query(migrationSQL);
     context.log('[Migration] Migration completed!');
-    context.log(`[Migration] Success: ${successCount}, Skipped: ${skipCount}, Errors: ${errorCount}`);
 
     return {
-      status: errorCount > 0 ? 207 : 200, // 207 Multi-Status if there were errors
+      status: 200,
       jsonBody: {
         success: true,
         message: 'Migration completed',
-        stats: {
-          total: statements.length,
-          success: successCount,
-          skipped: skipCount,
-          errors: errorCount,
-        },
-        details: results,
       },
     };
   } catch (error: unknown) {

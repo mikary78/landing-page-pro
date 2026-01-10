@@ -17,13 +17,30 @@ export interface User {
 
 export function useAzureAuth() {
   const { instance, accounts, inProgress } = useMsal();
-  const isAuthenticated = useIsAuthenticated();
+  const isAuthenticatedMsa = useIsAuthenticated();
   const [user, setUser] = useState<User | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const devBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
 
   // 사용자 정보 추출
   useEffect(() => {
-    if (isAuthenticated && accounts.length > 0) {
+    if (devBypass) {
+      const key = 'dev_auth_user_id';
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(key, id);
+      }
+      setUser({
+        id,
+        email: 'dev@example.com',
+        displayName: 'Dev User',
+        name: 'Dev',
+      });
+      return;
+    }
+
+    if (isAuthenticatedMsa && accounts.length > 0) {
       const account = accounts[0];
       const idTokenClaims = account.idTokenClaims as any;
 
@@ -36,14 +53,19 @@ export function useAzureAuth() {
     } else {
       setUser(null);
     }
-  }, [isAuthenticated, accounts]);
+  }, [devBypass, isAuthenticatedMsa, accounts]);
 
   // 초기 로딩 상태 관리 (한 번만 변경)
   useEffect(() => {
+    if (devBypass) {
+      if (!initialLoadDone) setInitialLoadDone(true);
+      return;
+    }
+
     if (!initialLoadDone && inProgress === InteractionStatus.None) {
       setInitialLoadDone(true);
     }
-  }, [inProgress, initialLoadDone]);
+  }, [devBypass, inProgress, initialLoadDone]);
 
   // loading 상태: 초기 로딩이 완료되지 않았거나 로그인/로그아웃 중일 때 true
   const loading = !initialLoadDone || 
@@ -55,6 +77,7 @@ export function useAzureAuth() {
    */
   const loginPopup = useCallback(async () => {
     try {
+      if (devBypass) return null as any;
       const response = await instance.loginPopup(loginRequest);
       console.log('[Auth] Login popup success:', response.account?.username);
       return response.account;
@@ -76,6 +99,7 @@ export function useAzureAuth() {
    */
   const signupPopup = useCallback(async () => {
     try {
+      if (devBypass) return null as any;
       // 회원가입 화면을 표시하기 위해 extraQueryParameters 사용
       // prompt=login을 사용하여 항상 로그인 화면 표시 (기존 세션 무시)
       const signupRequest = {
@@ -100,6 +124,7 @@ export function useAzureAuth() {
    */
   const loginRedirect = useCallback(async () => {
     try {
+      if (devBypass) return;
       await instance.loginRedirect(loginRequest);
     } catch (error) {
       console.error('[Auth] Login redirect error:', error);
@@ -112,6 +137,7 @@ export function useAzureAuth() {
    */
   const logout = useCallback(async () => {
     try {
+      if (devBypass) return;
       await instance.logoutPopup({
         postLogoutRedirectUri: '/',
         mainWindowRedirectUri: '/',
@@ -128,6 +154,7 @@ export function useAzureAuth() {
    */
   const logoutRedirect = useCallback(async () => {
     try {
+      if (devBypass) return;
       await instance.logoutRedirect({
         postLogoutRedirectUri: '/',
       });
@@ -141,6 +168,7 @@ export function useAzureAuth() {
    * 액세스 토큰 가져오기 (API 호출용)
    */
   const getAccessToken = useCallback(async () => {
+    if (devBypass) return null;
     if (accounts.length === 0) {
       throw new Error('No active account');
     }
@@ -225,7 +253,7 @@ export function useAzureAuth() {
 
   return {
     user,
-    isAuthenticated,
+    isAuthenticated: devBypass ? true : isAuthenticatedMsa,
     loading,
     loginPopup,
     signupPopup,

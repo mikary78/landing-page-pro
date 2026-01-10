@@ -1,32 +1,51 @@
-# ============================================
-# Landing Page Pro - Docker Compose
-# ============================================
-# 로컬 개발 및 테스트 환경 구성
-#
-# 실행: docker-compose up -d
-# 중지: docker-compose down
-# 로그: docker-compose logs -f
-# ============================================
-
-version: '3.8'
-
 services:
-  # ---- 프론트엔드 ----
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VITE_APP_ENV: development
-        VITE_AZURE_FUNCTIONS_URL: http://localhost:7071
-        VITE_ENTRA_CLIENT_ID: ${VITE_ENTRA_CLIENT_ID:-your-client-id}
-        VITE_ENTRA_TENANT_ID: ${VITE_ENTRA_TENANT_ID:-your-tenant-id}
-        VITE_ENTRA_TENANT_NAME: ${VITE_ENTRA_TENANT_NAME:-}
-        VITE_ENTRA_AUTHORITY: ${VITE_ENTRA_AUTHORITY:-https://your-tenant.ciamlogin.com}
-        VITE_ENTRA_REDIRECT_URI: ${VITE_ENTRA_REDIRECT_URI:-http://localhost:5173}
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
-        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
-    container_name: landing-page-pro-frontend
+  # PostgreSQL 데이터베이스
+  postgres:
+    image: postgres:15-alpine
+    container_name: landing-page-pro-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-landingpagepro}
+      POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pgadmin} -d ${POSTGRES_DB:-landingpagepro}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - landing-page-pro-network
+
+  # One-shot DB Migration (postgres healthy 후 migration.sql을 psql로 적용)
+  # - 목적: 새 환경/빈 볼륨에서도 `docker compose up -d`만으로 스키마 자동 생성
+  # - 주의: 실행 후 컨테이너는 Exited 상태가 정상입니다(1회 실행)
+  db-migrate:
+    image: postgres:15-alpine
+    container_name: landing-page-pro-db-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - ./db/migration.sql:/migrations/migration.sql:ro
+    command: >
+      sh -c "
+        echo '[db-migrate] applying migration.sql...';
+        psql -h postgres -U ${POSTGRES_USER:-pgadmin} -d ${POSTGRES_DB:-landingpagepro} -v ON_ERROR_STOP=1 -f /migrations/migration.sql;
+        echo '[db-migrate] done';
+      "
+    restart: "no"
+    networks:
+      - landing-page-pro-network
+
+  # Azurite (로컬 Azure Storage 에뮬레이터)
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: landing-page-pro-azurite
     ports:
       - "3000:80"
     depends_on:
@@ -51,38 +70,60 @@ services:
       - "7071:80"
     environment:
       # Azure Functions 설정
-      - FUNCTIONS_WORKER_RUNTIME=node
-      - AzureWebJobsStorage=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
-
+      AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+      FUNCTIONS_WORKER_RUNTIME: node
+      AZURE_FUNCTIONS_ENVIRONMENT: Development
+      DEV_AUTH_BYPASS: ${DEV_AUTH_BYPASS:-true}
+      
       # PostgreSQL 연결 정보
-      - AZURE_POSTGRES_HOST=${AZURE_POSTGRES_HOST:-postgres}
-      - AZURE_POSTGRES_DATABASE=${AZURE_POSTGRES_DATABASE:-landingpagepro}
-      - AZURE_POSTGRES_USER=${AZURE_POSTGRES_USER:-pgadmin}
-      - AZURE_POSTGRES_PASSWORD=${AZURE_POSTGRES_PASSWORD:-password}
-      - AZURE_POSTGRES_PORT=${AZURE_POSTGRES_PORT:-5432}
-
+      AZURE_POSTGRES_HOST: postgres
+      AZURE_POSTGRES_DATABASE: ${POSTGRES_DB:-landingpagepro}
+      AZURE_POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
+      AZURE_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      AZURE_POSTGRES_PORT: 5432
+      # 로컬 docker postgres는 SSL 미지원이므로 기본 false
+      AZURE_POSTGRES_SSL: ${AZURE_POSTGRES_SSL:-false}
+      
       # Entra ID 설정
       - ENTRA_TENANT_ID=${ENTRA_TENANT_ID:-}
       - ENTRA_TENANT_NAME=${ENTRA_TENANT_NAME:-}
       - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}
 
       # AI API Keys
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Web Search (optional)
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+    ports:
+      - "${FUNCTIONS_PORT:-7071}:80"
     depends_on:
       postgres:
         condition: service_healthy
       azurite:
         condition: service_started
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
     restart: unless-stopped
 
-  # ---- PostgreSQL 데이터베이스 (로컬 개발용) ----
-  postgres:
-    image: postgres:15-alpine
-    container_name: landing-page-pro-postgres
+  # 프론트엔드
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_ENTRA_TENANT_NAME: ${VITE_ENTRA_TENANT_NAME}
+        VITE_ENTRA_TENANT_ID: ${VITE_ENTRA_TENANT_ID}
+        VITE_ENTRA_CLIENT_ID: ${VITE_ENTRA_CLIENT_ID}
+        VITE_ENTRA_REDIRECT_URI: ${VITE_ENTRA_REDIRECT_URI:-http://localhost:5173}
+        VITE_AZURE_FUNCTIONS_URL: ${VITE_AZURE_FUNCTIONS_URL:-http://localhost:7071}
+        VITE_DEV_AUTH_BYPASS: ${VITE_DEV_AUTH_BYPASS:-true}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+    container_name: landing-page-pro-frontend
     ports:
       - "5432:5432"
     environment:
@@ -102,20 +143,27 @@ services:
       retries: 5
       start_period: 10s
 
-  # ---- Azurite (Azure Storage 에뮬레이터) ----
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    container_name: landing-page-pro-azurite
-    ports:
-      - "10000:10000"  # Blob
-      - "10001:10001"  # Queue
-      - "10002:10002"  # Table
-    volumes:
-      - azurite-data:/data
-    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
-    networks:
-      - app-network
+  # Portainer (Docker 관리 UI)
+  portainer:
+    image: portainer/portainer-ce:2.21.5
+    container_name: landing-page-pro-portainer
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - landing-page-pro-network
+
+volumes:
+  postgres_data:
+    driver: local
+  azurite_data:
+    driver: local
+  portainer_data:
+    driver: local
 
 # ---- 네트워크 ----
 networks:

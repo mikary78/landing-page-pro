@@ -1,11 +1,14 @@
 # 프론트엔드 Dockerfile
-FROM node:18-alpine AS builder
+FROM node:22.12.0-bookworm-slim AS builder
 
 WORKDIR /app
 
 # 의존성 파일 복사 및 설치
 COPY package*.json ./
-RUN npm ci
+# Windows에서 생성된 package-lock.json은 Linux에서 rollup optional dependency가 누락되는 케이스가 있어
+# 컨테이너 내부에서는 lockfile을 제거하고 플랫폼에 맞게 재해결합니다.
+RUN rm -f package-lock.json \
+    && npm install --include=optional --no-audit --no-fund
 
 # 소스 코드 복사
 COPY . .

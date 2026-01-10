@@ -8,7 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Clock, BookOpen, Brain, Eye } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Clock, BookOpen, Brain, Eye, Layers } from "lucide-react";
 
 interface BriefWizardProps {
   onComplete: (data: BriefData) => void;
@@ -24,6 +25,15 @@ export interface BriefData {
   educationSession: string;
   documentContent: string;
   aiModel: string;
+  outputs: {
+    document: boolean;
+    infographic: boolean;
+    slides: boolean;
+  };
+  options: {
+    enableWebSearch: boolean;
+    enableImageGeneration: boolean;
+  };
 }
 
 const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) => {
@@ -36,17 +46,27 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
     educationSession: initialData?.educationSession || "",
     documentContent: initialData?.documentContent || "",
     aiModel: initialData?.aiModel || "gemini",
+    outputs: {
+      document: (initialData as any)?.outputs?.document ?? true,
+      infographic: (initialData as any)?.outputs?.infographic ?? false,
+      slides: (initialData as any)?.outputs?.slides ?? false,
+    },
+    options: {
+      enableWebSearch: (initialData as any)?.options?.enableWebSearch ?? true,
+      enableImageGeneration: (initialData as any)?.options?.enableImageGeneration ?? true,
+    },
   });
 
-  const totalSteps = 5;
+  const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
   const steps = [
     { number: 1, title: "기본 정보", icon: FileText },
     { number: 2, title: "교육 설정", icon: Clock },
     { number: 3, title: "문서 내용", icon: BookOpen },
-    { number: 4, title: "AI 모델", icon: Brain },
-    { number: 5, title: "검토", icon: Eye },
+    { number: 4, title: "산출물 선택", icon: Layers },
+    { number: 5, title: "AI 모델", icon: Brain },
+    { number: 6, title: "검토", icon: Eye },
   ];
 
   const validateStep = (step: number): boolean => {
@@ -58,8 +78,10 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
       case 3:
         return formData.documentContent.trim() !== "";
       case 4:
-        return formData.aiModel !== "";
+        return formData.outputs.document || formData.outputs.infographic || formData.outputs.slides;
       case 5:
+        return formData.aiModel !== "";
+      case 6:
         return true;
       default:
         return false;
@@ -201,6 +223,109 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
 
       case 4:
         return (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label>생성할 산출물 선택 *</Label>
+              <p className="text-sm text-muted-foreground">
+                강의안(문서), 인포그래픽, 교안 슬라이드를 복수 선택할 수 있습니다.
+              </p>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent/50">
+                  <Checkbox
+                    checked={formData.outputs.document}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        outputs: { ...formData.outputs, document: Boolean(v) },
+                      })
+                    }
+                  />
+                  <div className="space-y-1">
+                    <div className="font-semibold">강의안(문서)</div>
+                    <div className="text-xs text-muted-foreground">교육 과정 설명/회차별 구성/활동/평가</div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent/50">
+                  <Checkbox
+                    checked={formData.outputs.infographic}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        outputs: { ...formData.outputs, infographic: Boolean(v) },
+                      })
+                    }
+                  />
+                  <div className="space-y-1">
+                    <div className="font-semibold">인포그래픽</div>
+                    <div className="text-xs text-muted-foreground">핵심 메시지를 시각적으로 요약</div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent/50">
+                  <Checkbox
+                    checked={formData.outputs.slides}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        outputs: { ...formData.outputs, slides: Boolean(v) },
+                      })
+                    }
+                  />
+                  <div className="space-y-1">
+                    <div className="font-semibold">교안 슬라이드</div>
+                    <div className="text-xs text-muted-foreground">슬라이드 덱(목차/본문/요약)</div>
+                  </div>
+                </label>
+              </div>
+
+              {!validateStep(4) && (
+                <p className="text-xs text-destructive">최소 1개 이상의 산출물을 선택해주세요.</p>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <Label>AI 고급 기능</Label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent/50">
+                  <Checkbox
+                    checked={formData.options.enableWebSearch}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        options: { ...formData.options, enableWebSearch: Boolean(v) },
+                      })
+                    }
+                  />
+                  <div className="space-y-1">
+                    <div className="font-semibold">웹 검색(최신 내용 반영)</div>
+                    <div className="text-xs text-muted-foreground">관련 최신 정보를 찾아 요약/반영</div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent/50">
+                  <Checkbox
+                    checked={formData.options.enableImageGeneration}
+                    onCheckedChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        options: { ...formData.options, enableImageGeneration: Boolean(v) },
+                      })
+                    }
+                  />
+                  <div className="space-y-1">
+                    <div className="font-semibold">이미지 생성(배경/삽화/다이어그램)</div>
+                    <div className="text-xs text-muted-foreground">산출물 스타일/삽화를 생성해 적용</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 5:
+        return (
           <div className="space-y-4">
             <Label>AI 모델 선택</Label>
             <RadioGroup
@@ -242,7 +367,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-4">
@@ -320,6 +445,26 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
                   </Badge>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-muted-foreground">산출물 / AI 기능</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {formData.outputs.document && <Badge variant="secondary">강의안(문서)</Badge>}
+                    {formData.outputs.infographic && <Badge variant="secondary">인포그래픽</Badge>}
+                    {formData.outputs.slides && <Badge variant="secondary">교안 슬라이드</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.options.enableWebSearch && <Badge variant="outline">웹 검색</Badge>}
+                    {formData.options.enableImageGeneration && <Badge variant="outline">이미지 생성</Badge>}
+                    {!formData.options.enableWebSearch && !formData.options.enableImageGeneration && (
+                      <span className="text-sm text-muted-foreground">선택된 AI 기능 없음</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         );
@@ -385,8 +530,9 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
             {currentStep === 1 && "프로젝트의 기본 정보를 입력해주세요"}
             {currentStep === 2 && "교육 관련 설정을 선택해주세요 (선택사항)"}
             {currentStep === 3 && "교육 콘텐츠의 기반이 될 문서를 입력해주세요"}
-            {currentStep === 4 && "콘텐츠 생성에 사용할 AI 모델을 선택해주세요"}
-            {currentStep === 5 && "입력하신 정보가 맞는지 확인해주세요"}
+            {currentStep === 4 && "생성할 산출물과 AI 기능을 선택해주세요"}
+            {currentStep === 5 && "콘텐츠 생성에 사용할 AI 모델을 선택해주세요"}
+            {currentStep === 6 && "입력하신 정보가 맞는지 확인해주세요"}
           </CardDescription>
         </CardHeader>
         <CardContent>{renderStepContent()}</CardContent>

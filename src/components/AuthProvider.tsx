@@ -32,6 +32,12 @@ interface AuthProviderProps {
  * App.tsx에서 최상위에 배치
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  // 로컬 개발 편의: Entra 설정 없이도 UI를 확인할 수 있도록 bypass 지원
+  // (API 호출은 프론트에서 x-dev-user-id 헤더로 동작)
+  if (import.meta.env.VITE_DEV_AUTH_BYPASS === 'true') {
+    return <MsalProvider instance={msalInstance}>{children}</MsalProvider>;
+  }
+
   const [isInitialized, setIsInitialized] = useState(false);
   const initializingRef = useRef(false);
 

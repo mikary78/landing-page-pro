@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 // import { supabase } from "@/integrations/supabase/client";
-import { processDocument } from "@/lib/azureFunctions";
+import { startGenerationJob } from "@/lib/azureFunctions";
 import Header from "@/components/Header";
 import BriefWizard, { BriefData } from "@/components/BriefWizard";
 import { Button } from "@/components/ui/button";
@@ -115,10 +115,12 @@ const ProjectCreate = () => {
       
       // Azure Function 호출 (프로젝트 생성 직후)
       try {
-        const { error: functionError, data: functionData } = await processDocument({
+        const { error: functionError, data: functionData } = await startGenerationJob({
           projectId: project.id,
           documentContent: formData.documentContent,
           aiModel: formData.aiModel as 'gemini' | 'claude' | 'chatgpt',
+          outputs: formData.outputs,
+          options: formData.options,
         });
 
         if (functionError) {
@@ -132,8 +134,8 @@ const ProjectCreate = () => {
         toast.error("AI 콘텐츠 생성 시작 중 오류가 발생했습니다. 프로젝트 상세 페이지에서 다시 시도해주세요.");
       }
 
-      // 프로젝트 상세 페이지로 이동
-      navigate(`/project/${project.id}`);
+      // 스튜디오 페이지로 이동(좌측 진행/우측 캔버스)
+      navigate(`/project/${project.id}/studio`);
     } catch (error) {
       console.error("Error creating project:", error);
       toast.error("프로젝트 생성 중 오류가 발생했습니다.");

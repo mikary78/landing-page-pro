@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import ProjectCreate from "./pages/ProjectCreate";
 import ProjectDetail from "./pages/ProjectDetail";
+import GenerationStudioPage from "./pages/GenerationStudioPage";
 import Demo from "./pages/Demo";
 import CourseView from "./pages/CourseView";
 import CourseFeedbackPage from "./pages/CourseFeedbackPage";
@@ -49,6 +50,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/project/create" element={<ProjectCreate />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
+            <Route path="/project/:id/studio" element={<GenerationStudioPage />} />
             <Route path="/demo" element={<Demo />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/course/:id" element={<CourseView />} />

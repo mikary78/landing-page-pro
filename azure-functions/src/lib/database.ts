@@ -12,14 +12,18 @@ let pool: Pool | null = null;
  */
 export function getPool(): Pool {
   if (!pool) {
+    const sslEnabled =
+      (process.env.AZURE_POSTGRES_SSL || '').toLowerCase() === 'true' &&
+      !['postgres', 'localhost', '127.0.0.1'].includes((process.env.AZURE_POSTGRES_HOST || '').toLowerCase());
+
     pool = new Pool({
       host: process.env.AZURE_POSTGRES_HOST,
       port: parseInt(process.env.AZURE_POSTGRES_PORT || '5432'),
       database: process.env.AZURE_POSTGRES_DATABASE,
       user: process.env.AZURE_POSTGRES_USER,
       password: process.env.AZURE_POSTGRES_PASSWORD,
-      // Azure PostgreSQL requires SSL
-      ssl: { rejectUnauthorized: false },
+      // 로컬(Postgres 컨테이너)은 SSL 미지원이므로 옵션으로 제어합니다.
+      ...(sslEnabled ? { ssl: { rejectUnauthorized: false } } : {}),
       // Azure Functions 환경에 맞게 연결 풀 최적화
       // 서버리스 환경에서는 연결 수를 최소화해야 함
       max: 3, // 최대 연결 수 줄임 (20 → 3)
@@ -29,7 +33,7 @@ export function getPool(): Pool {
       allowExitOnIdle: true, // 유휴 시 프로세스 종료 허용
     });
 
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
       console.error('[DB] Unexpected error on idle client:', err);
     });
     
