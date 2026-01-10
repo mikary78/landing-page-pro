@@ -167,7 +167,7 @@ async function runStep(
         ? `\n\n[출처 목록 - 제공된 URL만 사용]\n${sources.map((s, i) => `[${i + 1}] ${s.url}`).join('\n')}\n`
         : `\n\n[출처 목록]\n(없음)\n`;
 
-    const prompt = `사용자 입력:\n${documentContent}\n\n요구사항:\n- 슬라이드 6~10장\n- 각 슬라이드는 title/bullets/speakerNotes/visualHint 포함\n- speakerNotes에 출처 인용([n]) 포함 (출처가 있을 때)\n\nJSON 스키마:\n{\n  \"deckTitle\": \"...\",\n  \"slides\": [\n    {\"title\":\"...\",\"bullets\":[\"...\"],\"speakerNotes\":\"...\",\"visualHint\":\"...\"}\n  ]\n}\n${sourcesBlock}`;
+    const prompt = `사용자 입력:\n${documentContent}\n\n요구사항:\n- 슬라이드 6~10장\n- 각 슬라이드는 title/bullets/speakerNotes/visualHint 포함\n- speakerNotes에 출처 인용([n]) 포함 (출처가 있을 때)\n\nJSON 스키마:\n{\n  "deckTitle": "...",\n  "slides": [\n    {"title":"...","bullets":["..."],"speakerNotes":"...","visualHint":"..."}\n  ]\n}\n${sourcesBlock}`;
 
     const text = await generateContent(aiModel, prompt, system);
     let json = safeJsonParse<any>(text) ?? { raw: text };
