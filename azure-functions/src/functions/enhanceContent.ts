@@ -15,7 +15,7 @@ import { query } from '../lib/database';
 // 타입 정의
 // ============================================================
 
-type ContentType = 'slides' | 'quiz' | 'lab' | 'reading' | 'summary';
+type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
 type AiModel = 'gemini' | 'claude' | 'chatgpt';
 
 interface EnhanceContentRequest {
@@ -83,11 +83,13 @@ function buildEnhancePrompt(
   enhanceRequest: string
 ): { system: string; prompt: string } {
   const contentTypeLabels: Record<ContentType, string> = {
+    lesson_plan: '레슨 플랜',
     slides: '슬라이드',
-    quiz: '퀴즈',
-    lab: '실습 가이드',
-    reading: '읽기 자료',
-    summary: '요약',
+    hands_on_activity: '실습 활동',
+    assessment: '평가',
+    supplementary_materials: '보충 자료',
+    discussion_prompts: '토론 주제',
+    instructor_notes: '강사 노트',
   };
 
   const system = `당신은 교육 콘텐츠 편집 전문가입니다.
@@ -99,8 +101,8 @@ function buildEnhancePrompt(
 3. 일관된 품질과 톤 유지
 4. 원본과 동일한 형식(JSON/Markdown)으로 출력
 
-${contentType === 'slides' || contentType === 'quiz' || contentType === 'lab' 
-  ? '출력은 반드시 기존과 동일한 JSON 형식으로 작성하세요.' 
+${contentType === 'slides' || contentType === 'assessment' || contentType === 'hands_on_activity'
+  ? '출력은 반드시 기존과 동일한 JSON 형식으로 작성하세요.'
   : '출력은 Markdown 형식으로 작성하세요.'}`;
 
   const existingContentStr = typeof existingContent === 'string' 
@@ -179,7 +181,8 @@ export async function enhanceContent(
     let enhancedContent: any;
     let markdown: string | undefined;
 
-    if (contentType === 'reading' || contentType === 'summary') {
+    if (contentType === 'lesson_plan' || contentType === 'supplementary_materials' ||
+        contentType === 'discussion_prompts' || contentType === 'instructor_notes') {
       // Markdown 형식
       markdown = rawResult;
       enhancedContent = { markdown: rawResult };

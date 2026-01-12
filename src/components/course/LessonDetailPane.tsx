@@ -16,9 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Loader2, Sparkles, Bot, Presentation, CheckSquare, ClipboardList, 
-  FileText, BookOpen, RefreshCw, Wand2
+import {
+  Loader2, Sparkles, Bot, Presentation, CheckSquare, ClipboardList,
+  FileText, BookOpen, RefreshCw, Wand2, MessageCircle, Lightbulb
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -67,7 +67,7 @@ interface LessonDetailPaneProps {
   courseId: string;
 }
 
-type ContentType = 'slides' | 'quiz' | 'lab' | 'reading' | 'summary';
+type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
 
 const AI_MODELS = [
   { value: "gemini", label: "Gemini", description: "Google AI" },
@@ -76,11 +76,13 @@ const AI_MODELS = [
 ];
 
 const CONTENT_TYPES: { type: ContentType; label: string; icon: any; description: string }[] = [
-  { type: 'slides', label: '슬라이드', icon: Presentation, description: '프레젠테이션 슬라이드 생성' },
-  { type: 'quiz', label: '퀴즈', icon: CheckSquare, description: '평가 퀴즈 문항 생성' },
-  { type: 'lab', label: '실습 가이드', icon: ClipboardList, description: '단계별 실습 가이드 생성' },
-  { type: 'reading', label: '읽기 자료', icon: FileText, description: '학습 읽기 자료 생성' },
-  { type: 'summary', label: '요약', icon: BookOpen, description: '핵심 내용 요약 생성' },
+  { type: 'lesson_plan', label: '레슨 플랜', icon: BookOpen, description: '상세한 수업 계획 및 학습 활동 구성' },
+  { type: 'slides', label: '슬라이드', icon: Presentation, description: '프레젠테이션 슬라이드 보강 및 재생성' },
+  { type: 'hands_on_activity', label: '실습 활동', icon: ClipboardList, description: '단계별 실습 가이드 및 예제 코드' },
+  { type: 'assessment', label: '평가', icon: CheckSquare, description: '퀴즈, 과제, 루브릭 등 종합 평가' },
+  { type: 'supplementary_materials', label: '보충 자료', icon: FileText, description: '참고 문헌, 심화 자료, 사례 연구' },
+  { type: 'discussion_prompts', label: '토론 주제', icon: MessageCircle, description: '토론 질문 및 협업 활동 프롬프트' },
+  { type: 'instructor_notes', label: '강사 노트', icon: Lightbulb, description: '티칭 가이드, FAQ, 난이도 조절 팁' },
 ];
 
 const STYLE_OPTIONS = [
@@ -105,11 +107,13 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
   
   // 생성된 콘텐츠 저장
   const [generatedContents, setGeneratedContents] = useState<Record<ContentType, GeneratedContent | null>>({
+    lesson_plan: null,
     slides: null,
-    quiz: null,
-    lab: null,
-    reading: null,
-    summary: null,
+    hands_on_activity: null,
+    assessment: null,
+    supplementary_materials: null,
+    discussion_prompts: null,
+    instructor_notes: null,
   });
   
   // 현재 생성 중인 콘텐츠 타입
@@ -344,16 +348,17 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       );
     }
 
-    if (contentType === 'quiz' && data.items) {
+    if (contentType === 'assessment' && data.items) {
       return (
         <div className="space-y-4">
-          <h4 className="font-semibold">{data.quizTitle || '퀴즈'}</h4>
+          <h4 className="font-semibold">{data.title || '평가'}</h4>
           <div className="grid gap-3">
             {data.items.map((item: any, idx: number) => (
               <div key={idx} className="border rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="outline">Q{item.questionNumber || idx + 1}</Badge>
                   <Badge variant="secondary">{item.difficulty}</Badge>
+                  <Badge variant="outline">{item.points}점</Badge>
                 </div>
                 <p className="font-medium mb-2">{item.question}</p>
                 {item.options && (
@@ -372,7 +377,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       );
     }
 
-    if (contentType === 'lab' && data.steps) {
+    if (contentType === 'hands_on_activity' && data.steps) {
       return (
         <div className="space-y-4">
           <h4 className="font-semibold">{data.labTitle || '실습 가이드'}</h4>

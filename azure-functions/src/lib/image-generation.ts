@@ -177,7 +177,7 @@ export async function generateImageWithImagen(
     try {
       // @google-cloud/aiplatform 패키지가 설치되어 있으면 사용
       // 동적 import로 선택적 사용
-      // @ts-ignore - 선택적 패키지이므로 타입 체크 스킵
+      // @ts-expect-error - 선택적 패키지이므로 타입 체크 스킵
       const { PredictionServiceClient } = await import('@google-cloud/aiplatform').catch(() => null);
       
       if (PredictionServiceClient) {

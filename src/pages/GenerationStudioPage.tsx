@@ -551,7 +551,7 @@ export default function GenerationStudioPage() {
     if (!project || !combinedDocument) return;
     
     // Markdown 태그 제거
-    const plainText = combinedDocument.replace(/[#*_`~\[\]]/g, '').replace(/\n{3,}/g, '\n\n');
+    const plainText = combinedDocument.replace(/[#*_`~[\]]/g, '').replace(/\n{3,}/g, '\n\n');
     const content = `${project.title}\n\n${project.description || ''}\n\n---\n\n${plainText}`;
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -582,7 +582,7 @@ export default function GenerationStudioPage() {
     let html = md;
     
     // Markdown 테이블을 HTML 테이블로 변환
-    const tableRegex = /(\|.+\|[\r\n]+\|[-:\| ]+\|[\r\n]+(?:\|.+\|[\r\n]*)+)/g;
+    const tableRegex = /(\\|.+\\|[\r\n]+\\|[-: |]+\\|[\r\n]+(?:\\|.+\\|[\r\n]*)+)/g;
     html = html.replace(tableRegex, (tableMatch) => {
       const rows = tableMatch.trim().split('\n').filter(row => row.trim());
       if (rows.length < 2) return tableMatch;
@@ -786,8 +786,8 @@ export default function GenerationStudioPage() {
       };
       
       // 테이블 블록 먼저 추출
-      let content = combinedDocument;
-      const tableRegex = /(\|.+\|[\r\n]+\|[-:\| ]+\|[\r\n]+(?:\|.+\|[\r\n]*)+)/g;
+      const content = combinedDocument;
+      const tableRegex = /(\\|.+\\|[\r\n]+\\|[-: |]+\\|[\r\n]+(?:\\|.+\\|[\r\n]*)+)/g;
       const tables: { index: number; table: string }[] = [];
       let tableMatch;
       
@@ -862,7 +862,7 @@ export default function GenerationStudioPage() {
         } else if (line.trim()) {
           // 일반 텍스트 (볼드/이탤릭 처리)
           const runs: TextRun[] = [];
-          let remaining = line;
+          const remaining = line;
           
           // 볼드 처리
           const boldRegex = /\*\*([^*]+)\*\*/g;
@@ -1163,11 +1163,17 @@ export default function GenerationStudioPage() {
       });
 
       if (error) throw error;
-      
+
+      // 새로 생성된 Job ID로 상태 업데이트
+      if (data?.jobId) {
+        setSelectedJobId(data.jobId);
+        setSelectedStepId(null); // 단계 선택 초기화
+      }
+
       toast.success("프로젝트 재실행을 시작했습니다.");
-      
-      // 데이터 새로고침
-      await fetchAll(false);
+
+      // 새 Job ID로 데이터 새로고침
+      await fetchAll(false, data?.jobId);
     } catch (e: any) {
       toast.error(`재실행 실패: ${e?.message || e}`);
     } finally {
@@ -1192,12 +1198,18 @@ export default function GenerationStudioPage() {
       });
 
       if (error) throw error;
-      
+
+      // 새로 생성된 Job ID로 상태 업데이트
+      if (data?.jobId) {
+        setSelectedJobId(data.jobId);
+        setSelectedStepId(null); // 단계 선택 초기화
+      }
+
       setSelectedAiModel(aiModel);
       toast.success(`${aiModel.toUpperCase()} 모델로 재생성을 시작했습니다.`);
-      
-      // 데이터 새로고침
-      await fetchAll(false);
+
+      // 새 Job ID로 데이터 새로고침
+      await fetchAll(false, data?.jobId);
     } catch (e: any) {
       toast.error(`재시도 실패: ${e?.message || e}`);
     } finally {
@@ -1208,8 +1220,15 @@ export default function GenerationStudioPage() {
   // AI 모델 변경 - 해당 모델의 Job이 있으면 불러오기
   const handleAiModelChange = async (newModel: string) => {
     if (selectedAiModel === newModel) return;
+
+    // 재실행 중이면 모델만 변경하고 메시지 표시 안 함
+    if (retryingWithAi) {
+      setSelectedAiModel(newModel);
+      return;
+    }
+
     setSelectedAiModel(newModel);
-    
+
     // 해당 모델의 Job 찾기
     const jobForModel = jobsList.find(j => j.ai_model === newModel);
     if (jobForModel) {
@@ -1218,6 +1237,7 @@ export default function GenerationStudioPage() {
       await fetchAll(false, jobForModel.id);
       toast.success(`${newModel.toUpperCase()} 모델의 결과를 불러왔습니다.`);
     } else {
+      // Job이 없는 경우에만 안내 메시지 표시
       toast.info(`${newModel.toUpperCase()} 모델로 생성된 결과가 없습니다. '재실행' 버튼으로 생성하세요.`);
     }
   };

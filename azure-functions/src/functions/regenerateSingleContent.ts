@@ -17,7 +17,7 @@ import { getTargetAudienceGuide } from '../lib/agent/prompts';
 // 타입 정의
 // ============================================================
 
-type ContentType = 'slides' | 'quiz' | 'lab' | 'reading' | 'summary';
+type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
 type AiModel = 'gemini' | 'claude' | 'chatgpt';
 
 interface RegenerateSingleRequest {
@@ -109,6 +109,11 @@ function buildRegeneratePrompt(
     : '';
 
   const contentTypeConfigs: Record<ContentType, { label: string; jsonSchema: string; instruction: string }> = {
+    lesson_plan: {
+      label: '레슨 플랜',
+      jsonSchema: 'Markdown 형식',
+      instruction: '도입-전개-정리 구조의 상세한 수업 계획을 작성해주세요. 시간 배분, 활동, 교수자 팁을 포함해주세요.',
+    },
     slides: {
       label: '슬라이드',
       jsonSchema: `{
@@ -123,60 +128,37 @@ function buildRegeneratePrompt(
     }
   ]
 }`,
-      instruction: '8-12장의 슬라이드로 구성해주세요. 각 슬라이드에는 명확한 제목, 핵심 포인트, 발표자 노트를 포함해주세요.',
+      instruction: '10-15장의 슬라이드로 구성해주세요. 각 슬라이드에는 명확한 제목, 핵심 포인트, 발표자 노트를 포함해주세요.',
     },
-    quiz: {
-      label: '퀴즈',
-      jsonSchema: `{
-  "quizTitle": "퀴즈 제목",
-  "items": [
-    {
-      "questionNumber": 1,
-      "questionType": "multiple_choice | true_false | short_answer",
-      "question": "문제",
-      "options": ["선택지1", "선택지2", "선택지3", "선택지4"],
-      "correctAnswer": "정답",
-      "explanation": "해설",
-      "difficulty": "easy | medium | hard"
-    }
-  ]
-}`,
-      instruction: '5-10문항의 퀴즈를 구성해주세요. 다양한 유형(객관식, 참/거짓, 단답형)과 난이도를 혼합해주세요.',
+    hands_on_activity: {
+      label: '실습 활동',
+      jsonSchema: `JSON 형식 (hands-on activity structure)`,
+      instruction: '7-12개 단계의 실습 가이드를 작성해주세요. 예제 코드, 체크포인트, 트러블슈팅을 포함해주세요.',
     },
-    lab: {
-      label: '실습 가이드',
-      jsonSchema: `{
-  "labTitle": "실습 제목",
-  "estimatedTime": "예상 소요 시간",
-  "prerequisites": ["사전 준비 사항"],
-  "objectives": ["실습 목표"],
-  "steps": [
-    {
-      "stepNumber": 1,
-      "title": "단계 제목",
-      "instruction": "상세 지시사항",
-      "expectedResult": "예상 결과",
-      "tips": "유용한 팁"
-    }
-  ],
-  "summary": "실습 요약"
-}`,
-      instruction: '5-10개의 단계로 구성된 실습 가이드를 작성해주세요. 각 단계는 명확하고 따라하기 쉽게 작성해주세요.',
+    assessment: {
+      label: '평가',
+      jsonSchema: `JSON 형식 (assessment structure)`,
+      instruction: '8-12문항의 종합 평가를 구성해주세요. 다양한 유형과 난이도, 채점 루브릭을 포함해주세요.',
     },
-    reading: {
-      label: '읽기 자료',
+    supplementary_materials: {
+      label: '보충 자료',
       jsonSchema: 'Markdown 형식',
-      instruction: '1000-2000자 분량의 읽기 자료를 작성해주세요. 핵심 개념 설명, 실제 사례, 요약을 포함해주세요.',
+      instruction: '심화 설명, 참고 문헌, 사례 연구, 추천 학습 경로를 포함한 보충 자료를 작성해주세요.',
     },
-    summary: {
-      label: '요약',
+    discussion_prompts: {
+      label: '토론 주제',
       jsonSchema: 'Markdown 형식',
-      instruction: '핵심 포인트 5-7개, 주요 용어 정리(표), 기억해야 할 사항을 포함한 요약을 작성해주세요.',
+      instruction: '3-5개의 토론 주제, 그룹 활동, 사례 분석, 성찰 질문을 포함해주세요.',
+    },
+    instructor_notes: {
+      label: '강사 노트',
+      jsonSchema: 'Markdown 형식',
+      instruction: '수업 운영 팁, FAQ, 난이도 조절 방법, 학습 목표 달성도 체크리스트를 작성해주세요.',
     },
   };
 
   const config = contentTypeConfigs[contentType];
-  const isJson = contentType === 'slides' || contentType === 'quiz' || contentType === 'lab';
+  const isJson = contentType === 'slides' || contentType === 'assessment' || contentType === 'hands_on_activity';
 
   const system = `당신은 교육 콘텐츠 개발 전문가입니다.
 주어진 레슨 정보를 바탕으로 완전히 새로운 ${config.label}를 생성합니다.
@@ -269,7 +251,8 @@ export async function regenerateSingleContent(
     let regeneratedContent: any;
     let markdown: string | undefined;
 
-    if (contentType === 'reading' || contentType === 'summary') {
+    if (contentType === 'lesson_plan' || contentType === 'supplementary_materials' ||
+        contentType === 'discussion_prompts' || contentType === 'instructor_notes') {
       // Markdown 형식
       markdown = rawResult;
       regeneratedContent = { markdown: rawResult };
