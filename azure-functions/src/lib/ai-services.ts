@@ -19,10 +19,10 @@ export async function generateWithGemini(
   prompt: string,
   systemPrompt?: string
 ): Promise<string> {
-  // 모델 이름: gemini-1.5-flash-latest (최신 버전)
-  // 참고: @google/generative-ai SDK 버전에 따라 지원되는 모델이 다를 수 있음
+  // 모델 이름: gemini-1.5-flash (또는 gemini-1.5-flash-002)
+  // 참고: -latest 접미사는 v1 API에서 지원되지 않음
   // 에러 발생 시 폴백 없이 에러를 그대로 throw
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n---\n\n${prompt}` : prompt;
 
