@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Clock, BookOpen, Brain, Eye, Layers, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Clock, BookOpen, Brain, Eye, Layers, Users, Upload, Loader2, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface BriefWizardProps {
   onComplete: (data: BriefData) => void;
@@ -55,6 +56,10 @@ export const EDUCATION_TARGETS = [
 ] as const;
 
 const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) => {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<BriefData>({
     title: initialData?.title || "",
@@ -121,6 +126,142 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // PDF 텍스트 추출
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      // Worker 설정 - Vite 환경에서 로컬 worker 사용
+      if (typeof window !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+      }
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n\n';
+      }
+      
+      return fullText.trim();
+    } catch (error) {
+      console.error('PDF 텍스트 추출 실패:', error);
+      throw new Error('PDF 파일을 읽을 수 없습니다. 파일이 손상되었거나 암호화되어 있을 수 있습니다.');
+    }
+  };
+
+  // Word 문서 텍스트 추출
+  const extractTextFromWord = async (file: File): Promise<string> => {
+    try {
+      const mammoth = await import('mammoth');
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value.trim();
+    } catch (error) {
+      console.error('Word 텍스트 추출 실패:', error);
+      throw new Error('Word 파일을 읽을 수 없습니다. 파일이 손상되었거나 지원되지 않는 형식일 수 있습니다.');
+    }
+  };
+
+  // 파일 처리 핸들러
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // 파일 타입 검증
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+    ];
+    
+    const allowedExtensions = ['.pdf', '.docx', '.doc'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+      toast({
+        title: "지원하지 않는 파일 형식",
+        description: "PDF 또는 Word 파일(.pdf, .docx, .doc)만 업로드할 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 파일 크기 검증 (10MB 제한)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      toast({
+        title: "파일 크기 초과",
+        description: "파일 크기는 10MB 이하여야 합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessingFile(true);
+    setUploadedFileName(file.name);
+
+    try {
+      let extractedText = '';
+      
+      if (file.type === 'application/pdf' || fileExtension === '.pdf') {
+        extractedText = await extractTextFromPDF(file);
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.type === 'application/msword' ||
+        fileExtension === '.docx' ||
+        fileExtension === '.doc'
+      ) {
+        extractedText = await extractTextFromWord(file);
+      } else {
+        throw new Error('지원하지 않는 파일 형식입니다.');
+      }
+
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('파일에서 텍스트를 추출할 수 없습니다. 파일이 비어있거나 텍스트가 없을 수 있습니다.');
+      }
+
+      // 추출된 텍스트를 documentContent에 설정
+      setFormData({ ...formData, documentContent: extractedText });
+      
+      toast({
+        title: "파일 업로드 완료",
+        description: `${file.name}에서 텍스트를 성공적으로 추출했습니다. (${extractedText.length}자)`,
+      });
+    } catch (error) {
+      console.error('파일 처리 오류:', error);
+      toast({
+        title: "파일 처리 실패",
+        description: error instanceof Error ? error.message : "파일을 처리하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+      setUploadedFileName(null);
+    } finally {
+      setIsProcessingFile(false);
+      // 파일 입력 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // 업로드된 파일 제거
+  const handleRemoveFile = () => {
+    setUploadedFileName(null);
+    setFormData({ ...formData, documentContent: '' });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -252,6 +393,69 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
       case 3:
         return (
           <div className="space-y-4">
+            {/* 파일 업로드 섹션 */}
+            <div className="space-y-2">
+              <Label>문서 파일 업로드</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                  disabled={isProcessingFile}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessingFile}
+                  className="gap-2"
+                >
+                  {isProcessingFile ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      처리 중...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      파일 선택
+                    </>
+                  )}
+                </Button>
+                {uploadedFileName && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md flex-1">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm flex-1 truncate">{uploadedFileName}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveFile}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                PDF 또는 Word 파일(.pdf, .docx, .doc)을 업로드하면 자동으로 텍스트를 추출합니다. (최대 10MB)
+              </p>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">또는</span>
+              </div>
+            </div>
+
+            {/* 텍스트 입력 섹션 */}
             <div className="space-y-2">
               <Label htmlFor="document">교육 콘텐츠 내용 *</Label>
               <Textarea
@@ -264,7 +468,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
               />
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <FileText className="h-3 w-3" />
-                기존 문서의 내용을 복사하여 붙여넣기 하세요
+                기존 문서의 내용을 복사하여 붙여넣기 하거나 파일을 업로드하세요
               </p>
             </div>
           </div>

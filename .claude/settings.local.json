@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(az functionapp config appsettings set:*)"
+      "Bash(az functionapp config appsettings set:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
