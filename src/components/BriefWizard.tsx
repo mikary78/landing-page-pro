@@ -35,6 +35,11 @@ export interface BriefData {
   options: {
     enableWebSearch: boolean;
     enableImageGeneration: boolean;
+    slides?: {
+      /** PRD 기준: 3~15 */
+      slideCount: number;
+      template: "default" | "minimal" | "creative";
+    };
   };
 }
 
@@ -78,6 +83,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
     options: {
       enableWebSearch: (initialData as any)?.options?.enableWebSearch ?? true,
       enableImageGeneration: (initialData as any)?.options?.enableImageGeneration ?? true,
+      slides: (initialData as any)?.options?.slides ?? { slideCount: 10, template: "default" },
     },
   });
 
@@ -537,6 +543,79 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
                 <p className="text-xs text-destructive">최소 1개 이상의 산출물을 선택해주세요.</p>
               )}
             </div>
+
+            {/* 슬라이드 옵션 (선택 시) */}
+            {formData.outputs.slides && (
+              <div className="space-y-3">
+                <Label>슬라이드 옵션</Label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <Label className="text-sm">슬라이드 장수</Label>
+                    <Select
+                      value={String(formData.options.slides?.slideCount ?? 10)}
+                      onValueChange={(v) =>
+                        setFormData({
+                          ...formData,
+                          options: {
+                            ...formData.options,
+                            slides: {
+                              slideCount: Number(v) || 10,
+                              template: formData.options.slides?.template || "default",
+                            },
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="장수 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 13 }).map((_, i) => {
+                          const n = i + 3; // 3~15
+                          return (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}장
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">PRD 기준: 3~15장 권장</p>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <Label className="text-sm">PPTX 템플릿</Label>
+                    <Select
+                      value={formData.options.slides?.template || "default"}
+                      onValueChange={(v) =>
+                        setFormData({
+                          ...formData,
+                          options: {
+                            ...formData.options,
+                            slides: {
+                              slideCount: formData.options.slides?.slideCount ?? 10,
+                              template: (v as any) || "default",
+                            },
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="템플릿 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Modern Professional (default)</SelectItem>
+                        <SelectItem value="minimal">Minimal Clean</SelectItem>
+                        <SelectItem value="creative">Creative Bold</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      선택한 템플릿 톤이 슬라이드 생성/내보내기에 반영됩니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               <Label>AI 고급 기능</Label>

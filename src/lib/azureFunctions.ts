@@ -212,6 +212,12 @@ export interface StartGenerationJobRequest {
   options?: {
     enableWebSearch?: boolean;
     enableImageGeneration?: boolean;
+    slides?: {
+      /** PRD 기준: 3~15 */
+      slideCount?: number;
+      /** PPTX 스타일(내보내기/톤) */
+      template?: 'default' | 'minimal' | 'creative';
+    };
   };
 }
 

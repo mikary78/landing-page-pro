@@ -41,9 +41,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import PptxGenJS from "pptxgenjs";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageBreak } from "docx";
 import { saveAs } from "file-saver";
+import { generatePptxBlob } from "@/lib/pptxExport";
 
 interface Project {
   id: string;
@@ -93,6 +93,7 @@ export default function GenerationStudioPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [previewTab, setPreviewTab] = useState<"pipeline" | "document" | "infographic" | "slides">("pipeline");
+  const [pptxTemplate, setPptxTemplate] = useState<"default" | "minimal" | "creative">("default");
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [selectedAiModel, setSelectedAiModel] = useState<string>("");
@@ -927,131 +928,60 @@ export default function GenerationStudioPage() {
     }
   };
 
-  const handleDownloadPPT = () => {
+  const handleDownloadPPT = async () => {
     if (!project) return;
     
     try {
-      const pptx = new PptxGenJS();
-      pptx.author = "AI Autopilot";
-      pptx.title = project.title;
-      pptx.layout = "LAYOUT_16x9";
-      
-      // 제목 슬라이드
-      const titleSlide = pptx.addSlide();
-      titleSlide.background = { color: 'F1F5F9' };
-      titleSlide.addText(project.title, { 
-        x: 0.5, y: 2, w: 9, h: 1.5, 
-        fontSize: 44, bold: true, color: '1e293b', align: 'center' 
-      });
-      if (project.description) {
-        titleSlide.addText(project.description, { 
-          x: 0.5, y: 3.5, w: 9, h: 1, 
-          fontSize: 20, color: '64748b', align: 'center' 
-        });
-      }
-      
-      // 슬라이드 데이터 추출 (중첩된 구조 처리)
-      const slidesStep = jobState.steps.find(s => s.step_type === "slides" && s.status === "completed");
-      let slidesArray: any[] = [];
-      let deckTitle = "";
-      
-      if (slidesStep?.output?.slides) {
+      // 우선: backend artifact(slides.content_json) 사용 (Sources, speakerNotes 표준화 포함)
+      const slidesArtifact = artifactsByType.get("slides");
+      const slidesJson = (slidesArtifact?.content_json || null) as any;
+      const slidesAssets = (slidesArtifact?.assets || null) as any;
+
+      // fallback: step output에서 추출 (과거 데이터 호환)
+      let fallbackSlidesJson: any = null;
+      const slidesStep = jobState.steps.find((s) => s.step_type === "slides" && s.status === "completed");
+      if (!slidesJson && slidesStep?.output?.slides) {
         const slidesData = slidesStep.output.slides;
-        // { slides: { deckTitle, slides: [...] } } 또는 { slides: [...] } 구조 처리
         if (typeof slidesData === "object" && !Array.isArray(slidesData)) {
-          deckTitle = slidesData.deckTitle || "";
-          slidesArray = Array.isArray(slidesData.slides) ? slidesData.slides : [];
+          fallbackSlidesJson = { deckTitle: slidesData.deckTitle, slides: slidesData.slides, sources: slidesData.sources };
         } else if (Array.isArray(slidesData)) {
-          slidesArray = slidesData;
+          fallbackSlidesJson = { deckTitle: project.title, slides: slidesData };
         }
       }
-      
-      if (slidesArray.length > 0) {
-        // 슬라이드 데이터가 있으면 사용
-        for (const slide of slidesArray) {
-          const s = pptx.addSlide();
-          s.background = { color: 'FFFFFF' };
-          
-          // 제목
-          s.addText(slide.title || "", { 
-            x: 0.5, y: 0.3, w: 9, h: 0.8, 
-            fontSize: 28, bold: true, color: '1e3a8a' 
-          });
-          
-          // 불릿 포인트
-          if (slide.bullets && Array.isArray(slide.bullets) && slide.bullets.length > 0) {
-            const bulletText = slide.bullets.map((b: string) => ({ 
-              text: b, 
-              options: { bullet: { type: 'bullet' as const }, fontSize: 18, color: '334155' } 
-            }));
-            s.addText(bulletText, {
-              x: 0.5, y: 1.3, w: 9, h: 4,
-              valign: 'top'
-            });
-          }
-          
-          // 발표자 노트
-          if (slide.speakerNotes) {
-            s.addNotes(slide.speakerNotes);
-          }
-        }
-      } else if (combinedDocument) {
-        // 내용 슬라이드 (Markdown에서 생성)
+
+      // 마지막 fallback: 문서(Markdown) 기반으로 최소 deck 생성
+      if (!slidesJson && !fallbackSlidesJson && combinedDocument) {
         const sections = combinedDocument.split(/\n## /);
+        const slides = [];
         for (const section of sections.slice(0, 15)) {
-          const lines = section.split('\n');
-          const title = lines[0]?.replace(/^#+ /, '') || "내용";
-          const contentLines = lines.slice(1).filter(l => l.trim());
-          
-          if (title && contentLines.length > 0) {
-            const s = pptx.addSlide();
-            s.background = { color: 'FFFFFF' };
-            
-            s.addText(title, { 
-              x: 0.5, y: 0.3, w: 9, h: 0.8, 
-              fontSize: 28, bold: true, color: '1e3a8a' 
-            });
-            
-            // 리스트 항목 추출
-            const bullets = contentLines
-              .filter(l => l.startsWith('- ') || l.match(/^\d+\. /))
-              .map(l => l.replace(/^- /, '').replace(/^\d+\. /, ''))
-              .slice(0, 6);
-            
-            if (bullets.length > 0) {
-              const bulletText = bullets.map((b: string) => ({ 
-                text: b, 
-                options: { bullet: { type: 'bullet' as const }, fontSize: 18, color: '334155' } 
-              }));
-              s.addText(bulletText, {
-                x: 0.5, y: 1.3, w: 9, h: 4,
-                valign: 'top'
-              });
-            } else {
-              // 일반 텍스트
-              const text = contentLines.join('\n').substring(0, 400);
-              s.addText(text, { 
-                x: 0.5, y: 1.3, w: 9, h: 4.5, 
-                fontSize: 16, color: '334155', valign: 'top' 
-              });
-            }
+          const lines = section.split("\n");
+          const title = lines[0]?.replace(/^#+ /, "") || "내용";
+          const contentLines = lines.slice(1).filter((l) => l.trim());
+          const bullets = contentLines
+            .filter((l) => l.startsWith("- ") || l.match(/^\d+\. /))
+            .map((l) => l.replace(/^- /, "").replace(/^\d+\. /, ""))
+            .slice(0, 8);
+          if (title && bullets.length > 0) {
+            slides.push({ title, bullets });
           }
         }
+        fallbackSlidesJson = { deckTitle: project.title, slides };
       }
-      
-      // 마지막 슬라이드 (감사합니다)
-      const endSlide = pptx.addSlide();
-      endSlide.background = { color: 'F1F5F9' };
-      endSlide.addText("감사합니다", { 
-        x: 0.5, y: 2.5, w: 9, h: 1, 
-        fontSize: 44, bold: true, color: '1e293b', align: 'center' 
+
+      const effectiveSlidesJson = slidesJson || fallbackSlidesJson;
+      if (!effectiveSlidesJson) {
+        toast.error("슬라이드 산출물이 없어 PPTX를 만들 수 없습니다. (슬라이드 생성 후 다시 시도해주세요)");
+        return;
+      }
+
+      const { blob, fileName } = await generatePptxBlob({
+        projectTitle: project.title,
+        projectDescription: project.description,
+        slidesJson: effectiveSlidesJson,
+        assets: slidesAssets,
+        template: pptxTemplate,
       });
-      endSlide.addText(`Generated by AI Autopilot · ${new Date().toLocaleDateString('ko-KR')}`, { 
-        x: 0.5, y: 4, w: 9, h: 0.5, 
-        fontSize: 12, color: '64748b', align: 'center' 
-      });
-      
-      pptx.writeFile({ fileName: `${project.title.replace(/\s+/g, '_')}.pptx` });
+      saveAs(blob, fileName);
       toast.success("PowerPoint 파일이 다운로드되었습니다.");
     } catch (e) {
       console.error("PPT download error:", e);
@@ -1372,7 +1302,27 @@ export default function GenerationStudioPage() {
             )}
 
             {/* 다운로드 버튼 (드롭다운) */}
-            {jobState.job?.status === "completed" && combinedDocument && (
+            {jobState.job?.status === "completed" && (
+              <Select
+                value={pptxTemplate}
+                onValueChange={(v) => setPptxTemplate(v as any)}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <div className="flex items-center gap-1">
+                    <Presentation className="h-3 w-3" />
+                    <span>PPT 템플릿</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Modern (default)</SelectItem>
+                  <SelectItem value="minimal">Minimal</SelectItem>
+                  <SelectItem value="creative">Creative</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* 다운로드 버튼 (드롭다운) */}
+            {jobState.job?.status === "completed" && (
               <Select
                 value=""
                 onValueChange={(action) => {
@@ -1399,29 +1349,38 @@ export default function GenerationStudioPage() {
                       <Copy className="h-3 w-3" />클립보드 복사
                     </div>
                   </SelectItem>
-                  <SelectItem value="txt">
+                  <SelectItem value="txt" disabled={!combinedDocument}>
                     <div className="flex items-center gap-2">
                       <FileText className="h-3 w-3" />TXT 파일
                     </div>
                   </SelectItem>
-                  <SelectItem value="md">
+                  <SelectItem value="md" disabled={!combinedDocument}>
                     <div className="flex items-center gap-2">
                       <FileText className="h-3 w-3" />Markdown 파일
                     </div>
                   </SelectItem>
-                  <SelectItem value="pdf">
+                  <SelectItem value="pdf" disabled={!combinedDocument}>
                     <div className="flex items-center gap-2">
                       <FileText className="h-3 w-3" />PDF 파일
                     </div>
                   </SelectItem>
-                  <SelectItem value="docx">
+                  <SelectItem value="docx" disabled={!combinedDocument}>
                     <div className="flex items-center gap-2">
                       <FileText className="h-3 w-3" />Word 문서 (DOCX)
                     </div>
                   </SelectItem>
-                  <SelectItem value="ppt">
+                  <SelectItem
+                    value="ppt"
+                    disabled={
+                      !(
+                        artifactsByType.get("slides")?.content_json ||
+                        jobState.steps.some((s) => s.step_type === "slides" && s.status === "completed") ||
+                        combinedDocument
+                      )
+                    }
+                  >
                     <div className="flex items-center gap-2">
-                      <Presentation className="h-3 w-3" />PowerPoint (PPT)
+                      <Presentation className="h-3 w-3" />슬라이드 만들기 (PPTX)
                     </div>
                   </SelectItem>
                   <SelectItem value="bg-image">

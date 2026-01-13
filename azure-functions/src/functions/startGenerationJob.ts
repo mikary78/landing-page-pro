@@ -22,6 +22,7 @@ import { requireAuth } from '../middleware/auth';
 import { query, transaction } from '../lib/database';
 import { planGenerationSteps, RequestedOutputs, GenerationOptions } from '../lib/agent/plan';
 import { isUuid } from '../lib/validation';
+import { sanitizeSlidesOptions } from '../lib/agent/slidesOptions';
 
 // QueueClient는 함수 호출 시점에 lazy initialization
 let queueClient: QueueClient | null = null;
@@ -83,9 +84,20 @@ export async function startGenerationJob(
       [user.userId, user.name || user.email || 'Unknown User']
     );
 
+    let slidesOpt: GenerationOptions['slides'] | undefined;
+    try {
+      slidesOpt = sanitizeSlidesOptions((options as any)?.slides);
+    } catch (e) {
+      return {
+        status: 400,
+        jsonBody: { success: false, error: e instanceof Error ? e.message : 'Invalid slides options' },
+      };
+    }
+
     const effectiveOptions: GenerationOptions = {
       enableWebSearch: !!options?.enableWebSearch,
       enableImageGeneration: !!options?.enableImageGeneration,
+      ...(slidesOpt ? { slides: slidesOpt } : {}),
     };
 
     const stepsPlan = planGenerationSteps(outputs, effectiveOptions);

@@ -13,6 +13,7 @@ import { app, InvocationContext, output } from '@azure/functions';
 import { transaction } from '../lib/database';
 import { generateContent } from '../lib/ai-services';
 import { planGenerationSteps, RequestedOutputs, GenerationOptions, GenerationStepType } from '../lib/agent/plan';
+import { resolveSlideCount, resolveTemplate } from '../lib/agent/slidesOptions';
 import { webSearch, WebSearchResult } from '../lib/web-search';
 import { generateImageDataUrl } from '../lib/image-generation';
 import { ensureSourcesSectionMarkdown, enforceSlideCitationsAndDeckSources, normalizeSources } from '../lib/citations';
@@ -553,8 +554,17 @@ JSON 스키마 예시:
       ? EDUCATION_TARGET_LABELS[projectContext.educationTarget] || projectContext.educationTarget 
       : '일반 성인';
 
-    // 슬라이드 수 계산: 기본 6장, 회차당 +2장
-    const slideCount = Math.min(6 + (educationSession - 1) * 2, 15);
+    // 슬라이드 수 계산: 기본 6장, 회차당 +2장 (PRD: 3~15 범위)
+    const defaultSlideCount = Math.min(6 + (educationSession - 1) * 2, 15);
+    const slideCount = resolveSlideCount((options as any)?.slides?.slideCount, defaultSlideCount);
+
+    const template = resolveTemplate((options as any)?.slides?.template);
+    const templateHint =
+      template === 'minimal'
+        ? '미니멀/클린 톤(여백, 단색, 간결)'
+        : template === 'creative'
+          ? '크리에이티브/대담한 톤(강한 대비, 포인트 컬러)'
+          : '모던/프로페셔널 톤(밸런스, 비즈니스)';
 
     const system = `당신은 교안 슬라이드 설계자입니다. 사용자의 입력과 교육 설정을 바탕으로 슬라이드 덱 구조 JSON을 작성하세요. JSON만 반환하세요.
 반드시 다음 규칙을 지키세요:
@@ -569,7 +579,7 @@ JSON 스키마 예시:
         ? `\n\n[출처 목록 - 제공된 URL만 사용]\n${sources.map((s, i) => `[${i + 1}] ${s.url}`).join('\n')}\n`
         : `\n\n[출처 목록]\n(없음)\n`;
 
-    const educationInfo = `[교육 설정 - 반드시 준수]\n- 교육대상: ${educationTargetLabel}\n- 교육 시간: ${educationDuration}\n- 교육 과정: ${educationCourse}\n- 회차: ${educationSession}회차\n`;
+    const educationInfo = `[교육 설정 - 반드시 준수]\n- 교육대상: ${educationTargetLabel}\n- 교육 시간: ${educationDuration}\n- 교육 과정: ${educationCourse}\n- 회차: ${educationSession}회차\n- 슬라이드 템플릿 톤: ${templateHint}\n`;
 
     const prompt = `사용자 입력:\n${documentContent}\n\n${educationInfo}\n요구사항:\n- 슬라이드 약 ${slideCount}장 (${educationDuration}, ${educationSession}회차에 적합한 분량)\n- 교육대상(${educationTargetLabel})에 맞는 난이도와 표현\n- 각 슬라이드는 title/bullets/speakerNotes/visualHint 포함\n- speakerNotes에 출처 인용([n]) 포함 (출처가 있을 때)\n\nJSON 스키마:\n{\n  "deckTitle": "...",\n  "slides": [\n    {"title":"...","bullets":["..."],"speakerNotes":"...","visualHint":"..."}\n  ]\n}\n${sourcesBlock}`;
 
@@ -962,7 +972,19 @@ JSON 스키마 예시:
 - 다른 텍스트 없이 순수 JSON만 반환
 - 각 슬라이드에 발표자 노트 필수 포함`;
 
-    const slideCount = Math.min(6 + (educationSession - 1) * 4, 20);
+    // PRD 기준: 3~15장 (사용자 지정이 있으면 우선)
+    const defaultSlideCount = Math.min(6 + (educationSession - 1) * 4, 15);
+    const slideCount = resolveSlideCount((options as any)?.slides?.slideCount, defaultSlideCount);
+
+    const template = resolveTemplate((options as any)?.slides?.template);
+    const templateHint =
+      template === 'minimal'
+        ? '미니멀/클린 톤(여백, 단색, 간결)'
+        : template === 'creative'
+          ? '크리에이티브/대담한 톤(강한 대비, 포인트 컬러)'
+          : '모던/프로페셔널 톤(밸런스, 비즈니스)';
+
+    const educationInfoWithTemplate = `${educationInfo}\n[슬라이드 템플릿]\n- template: ${template || 'default'}\n- 톤: ${templateHint}\n`;
 
     // 재시도 로직을 포함한 생성
     const result = await generateWithRetry<SlideOutput>({
@@ -970,7 +992,7 @@ JSON 스키마 예시:
       aiModel,
       systemPrompt: system,
       buildPrompt: (feedback) => buildSlidesPrompt(
-        educationInfo,
+        educationInfoWithTemplate,
         previousOutput,
         sourcesBlock,
         slideCount,

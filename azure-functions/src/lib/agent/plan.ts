@@ -34,6 +34,15 @@ export interface GenerationOptions {
   enableImageGeneration?: boolean;
   /** 6단계 파이프라인 사용 여부 (기본: true) */
   useSixStagePipeline?: boolean;
+  /**
+   * 슬라이드 생성 옵션 (선택)
+   * - slideCount: 3~15 권장 (PRD 기준)
+   * - template: PPTX 내보내기/디자인 톤에 활용
+   */
+  slides?: {
+    slideCount?: number;
+    template?: 'default' | 'minimal' | 'creative';
+  };
 }
 
 export interface RequestedOutputs {
