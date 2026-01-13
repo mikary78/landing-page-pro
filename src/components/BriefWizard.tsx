@@ -139,12 +139,9 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
   const extractTextFromPDF = async (file: File): Promise<string> => {
     try {
       const pdfjsLib = await import('pdfjs-dist');
-      // Worker 설정 - Vite 환경에서 로컬 worker 사용
+      // Worker 설정 - CDN 사용으로 빌드 문제 회피
       if (typeof window !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/build/pdf.worker.min.mjs',
-          import.meta.url
-        ).toString();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
       }
       
       const arrayBuffer = await file.arrayBuffer();

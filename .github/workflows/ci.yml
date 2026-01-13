@@ -41,12 +41,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-          npm rebuild
+        run: npm ci
 
       - name: Run ESLint
         run: npm run lint
@@ -62,12 +60,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-          npm rebuild
+        run: npm ci
 
       - name: Run TypeScript type check
         run: npm run typecheck
@@ -83,12 +79,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-          npm rebuild
+        run: npm ci
 
       - name: Run unit tests
         run: npm run test:run
@@ -108,12 +102,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-          npm rebuild
+        run: npm ci
 
       - name: Build application
         run: npm run build
