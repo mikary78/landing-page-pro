@@ -1,3 +1,4 @@
+
 -- ========================================================
 -- Azure SQL Migration Script
 -- From: Supabase PostgreSQL
@@ -437,7 +438,92 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE SQL STABLE;
 
 -- ========================================================
--- 5. PERFORMANCE TUNING
+-- 5. ADDITIONAL COLUMNS (2026-01-10)
+-- ========================================================
+
+-- 교육대상(education_target) 컬럼 추가
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS education_target TEXT DEFAULT NULL;
+
+-- 프로젝트 소스 타입 추가 (direct: 직접생성, from_course: 코스빌더에서 생성, imported: 외부 가져오기)
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'direct';
+
+-- 레슨에 콘텐츠 소스 추적 컬럼 추가
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS content_source TEXT DEFAULT 'manual';
+
+-- ========================================================
+-- 5.1 PROJECT-COURSE LINKS TABLE (2026-01-10)
+-- 프로젝트와 코스 간 양방향 연결 추적
+-- ========================================================
+
+CREATE TABLE IF NOT EXISTS project_course_links (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID NOT NULL,
+  course_id UUID NOT NULL,
+  link_type TEXT NOT NULL, -- 'project_to_course' | 'course_to_project'
+  session_mapping JSONB, -- 세션-모듈 매핑 정보 저장
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_project_course_link UNIQUE (project_id, course_id)
+);
+
+DO $$ BEGIN
+  ALTER TABLE project_course_links ADD CONSTRAINT fk_project_course_links_project_id
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE project_course_links ADD CONSTRAINT fk_project_course_links_course_id
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_project_course_links_project_id ON project_course_links(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_course_links_course_id ON project_course_links(course_id);
+
+-- ========================================================
+-- 5.2 CONTENT VERSIONS TABLE (2026-01-10)
+-- 콘텐츠 버전 이력 관리
+-- ========================================================
+
+CREATE TABLE IF NOT EXISTS content_versions (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  lesson_id UUID NOT NULL,
+  project_id UUID,
+  version_number INTEGER NOT NULL,
+  content_type TEXT NOT NULL, -- 'slides' | 'quiz' | 'lab' | 'reading' | 'summary' | 'full'
+  content_snapshot JSONB NOT NULL, -- 해당 시점의 콘텐츠 스냅샷
+  created_by TEXT NOT NULL DEFAULT 'user', -- 'ai' | 'user' | 'import' | 'restore'
+  ai_model TEXT, -- AI가 생성한 경우 모델명
+  notes TEXT, -- 버전에 대한 메모
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$ BEGIN
+  ALTER TABLE content_versions ADD CONSTRAINT fk_content_versions_lesson_id
+    FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE content_versions ADD CONSTRAINT fk_content_versions_project_id
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_content_versions_lesson_id ON content_versions(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_content_versions_project_id ON content_versions(project_id);
+CREATE INDEX IF NOT EXISTS idx_content_versions_created_at ON content_versions(lesson_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_versions_version ON content_versions(lesson_id, content_type, version_number DESC);
+
+-- lessons 테이블에 현재 버전 번호 컬럼 추가
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1;
+
+-- ========================================================
+-- 6. PERFORMANCE TUNING
 -- ========================================================
 
 ANALYZE profiles;
@@ -447,3 +533,4 @@ ANALYZE project_stages;
 ANALYZE courses;
 ANALYZE course_modules;
 ANALYZE lessons;
+ANALYZE content_versions;
