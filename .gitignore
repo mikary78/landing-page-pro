@@ -43,3 +43,9 @@ azure-functions/local.settings.json
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
