@@ -2,7 +2,7 @@ services:
   # PostgreSQL 데이터베이스
   postgres:
     image: postgres:15-alpine
-    container_name: landing-page-pro-db
+    container_name: landing-page-pro-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-landingpagepro}
       POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
@@ -17,7 +17,8 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - landing-page-pro-network
+      - app-network
+    restart: unless-stopped
 
   # One-shot DB Migration (postgres healthy 후 migration.sql을 psql로 적용)
   # - 목적: 새 환경/빈 볼륨에서도 `docker compose up -d`만으로 스키마 자동 생성
@@ -30,6 +31,8 @@ services:
         condition: service_healthy
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-landingpagepro}
+      POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
     volumes:
       - ./db/migration.sql:/migrations/migration.sql:ro
     command: >
@@ -40,25 +43,24 @@ services:
       "
     restart: "no"
     networks:
-      - landing-page-pro-network
+      - app-network
 
   # Azurite (로컬 Azure Storage 에뮬레이터)
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: landing-page-pro-azurite
+    command: >
+      azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+      --location /data --debug /data/debug.log
     ports:
-      - "3000:80"
-    depends_on:
-      - functions
+      - "127.0.0.1:${AZURITE_BLOB_PORT:-10000}:10000"
+      - "127.0.0.1:${AZURITE_QUEUE_PORT:-10001}:10001"
+      - "127.0.0.1:${AZURITE_TABLE_PORT:-10002}:10002"
+    volumes:
+      - azurite_data:/data
     networks:
       - app-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # ---- Azure Functions (API) ----
   functions:
@@ -66,15 +68,13 @@ services:
       context: ./azure-functions
       dockerfile: Dockerfile
     container_name: landing-page-pro-functions
-    ports:
-      - "7071:80"
     environment:
       # Azure Functions 설정
       AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
       FUNCTIONS_WORKER_RUNTIME: node
       AZURE_FUNCTIONS_ENVIRONMENT: Development
       DEV_AUTH_BYPASS: ${DEV_AUTH_BYPASS:-true}
-      
+
       # PostgreSQL 연결 정보
       AZURE_POSTGRES_HOST: postgres
       AZURE_POSTGRES_DATABASE: ${POSTGRES_DB:-landingpagepro}
@@ -83,11 +83,11 @@ services:
       AZURE_POSTGRES_PORT: 5432
       # 로컬 docker postgres는 SSL 미지원이므로 기본 false
       AZURE_POSTGRES_SSL: ${AZURE_POSTGRES_SSL:-false}
-      
+
       # Entra ID 설정
-      - ENTRA_TENANT_ID=${ENTRA_TENANT_ID:-}
-      - ENTRA_TENANT_NAME=${ENTRA_TENANT_NAME:-}
-      - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}
+      ENTRA_TENANT_ID: "${ENTRA_TENANT_ID:-}"
+      ENTRA_TENANT_NAME: "${ENTRA_TENANT_NAME:-}"
+      ENTRA_CLIENT_ID: "${ENTRA_CLIENT_ID:-}"
 
       # AI API Keys
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -109,7 +109,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  # 프론트엔드
+  # 프론트엔드 (Nginx로 dist 서빙)
   frontend:
     build:
       context: .
@@ -125,29 +125,19 @@ services:
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
     container_name: landing-page-pro-frontend
     ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=landingpagepro
-      - POSTGRES_USER=pgadmin
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - functions
     networks:
       - app-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pgadmin -d landingpagepro"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
   # Portainer (Docker 관리 UI)
   portainer:
-    image: portainer/portainer-ce:2.21.5
+    # NOTE: Docker Desktop(Engine 29.x)의 최소 API 버전(>=1.44)에 맞추기 위해 Portainer도 최신 LTS로 업그레이드
+    image: portainer/portainer-ce:2.33.0
     container_name: landing-page-pro-portainer
-    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
     ports:
       - "127.0.0.1:19000:9000"
       - "127.0.0.1:19443:9443"
@@ -155,7 +145,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     networks:
-      - landing-page-pro-network
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:
@@ -163,17 +158,5 @@ volumes:
   azurite_data:
     driver: local
   portainer_data:
-    driver: local
-
-# ---- 네트워크 ----
-networks:
-  app-network:
-    driver: bridge
-
-# ---- 볼륨 ----
-volumes:
-  postgres-data:
-    driver: local
-  azurite-data:
     driver: local
 

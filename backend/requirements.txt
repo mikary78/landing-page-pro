@@ -1,0 +1,12 @@
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+pydantic-settings==2.6.1
+aiohttp==3.10.11
+openai==1.57.4
+python-dotenv==1.0.1
+
+# tests
+pytest==8.3.4
+pytest-asyncio==0.24.0
+aioresponses==0.7.6
+
