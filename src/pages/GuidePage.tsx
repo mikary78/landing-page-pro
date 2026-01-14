@@ -18,6 +18,7 @@ import {
   FileText, Sparkles, Download, Settings, Play,
   CheckCircle2, ArrowRight, Lightbulb, AlertCircle
 } from "lucide-react";
+import logo from "/logo.svg";
 
 // ============================================================
 // 가이드 데이터
@@ -473,7 +474,7 @@ export default function GuidePage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

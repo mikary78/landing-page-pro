@@ -3,6 +3,7 @@ import { LogOut, FolderOpen, BookOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Link } from "react-router-dom";
+import logo from "/logo.svg";
 
 const Header = () => {
   const { user, signOut } = useAuth();
@@ -14,7 +15,7 @@ const Header = () => {
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img 
-              src="/logo.svg" 
+              src={logo} 
               alt="Autopilot Logo" 
               className="w-10 h-10"
             />

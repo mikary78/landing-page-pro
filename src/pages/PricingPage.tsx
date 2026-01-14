@@ -14,6 +14,7 @@ import {
   ArrowRight, Mail, CheckCircle2
 } from "lucide-react";
 import { ContactModal } from "@/components/ContactModal";
+import logo from "/logo.svg";
 
 export default function PricingPage() {
   return (
@@ -24,7 +25,7 @@ export default function PricingPage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

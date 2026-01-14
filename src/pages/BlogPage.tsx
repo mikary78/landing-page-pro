@@ -17,6 +17,7 @@ import {
   ChevronLeft, Search, Calendar, User, Clock, 
   ArrowRight, BookOpen, Lightbulb, TrendingUp, Megaphone
 } from "lucide-react";
+import logo from "/logo.svg";
 
 // ============================================================
 // 블로그 데이터
@@ -369,7 +370,7 @@ export default function BlogPage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

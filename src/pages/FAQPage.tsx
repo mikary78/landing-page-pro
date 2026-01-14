@@ -19,6 +19,7 @@ import {
   MessageSquare, ChevronLeft, Sparkles, BookOpen, Zap
 } from "lucide-react";
 import { ContactModal } from "@/components/ContactModal";
+import logo from "/logo.svg";
 
 // ============================================================
 // FAQ 데이터
@@ -161,7 +162,7 @@ export default function FAQPage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

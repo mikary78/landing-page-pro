@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { BLOG_POSTS, BlogPost } from "./BlogPage";
 import { toast } from "sonner";
+import logo from "/logo.svg";
 
 export default function BlogDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -64,7 +65,7 @@ export default function BlogDetailPage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

@@ -20,6 +20,7 @@ import {
   CheckSquare, FileText, Clock, Users, Eye, ArrowRight,
   Code, Briefcase, Heart, Palette, Globe, TrendingUp
 } from "lucide-react";
+import logo from "/logo.svg";
 
 // ============================================================
 // 예시 데이터
@@ -412,7 +413,7 @@ export default function ExamplesPage() {
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />

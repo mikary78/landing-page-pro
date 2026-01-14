@@ -11,6 +11,7 @@
 
 import { Link } from "react-router-dom";
 import { ContactModal } from "./ContactModal";
+import logo from "/logo.svg";
 
 const Footer = () => {
   return (
@@ -21,7 +22,7 @@ const Footer = () => {
           <div className="space-y-4">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo.svg" 
+                src={logo} 
                 alt="Autopilot Logo" 
                 className="w-8 h-8"
               />
