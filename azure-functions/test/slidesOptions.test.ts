@@ -19,11 +19,15 @@ describe('slidesOptions', () => {
     expect(resolveTemplate('default')).toBe('default');
     expect(resolveTemplate('minimal')).toBe('minimal');
     expect(resolveTemplate('creative')).toBe('creative');
+    expect(resolveTemplate('gamma')).toBe('gamma');
+    expect(resolveTemplate('canva')).toBe('canva');
     expect(resolveTemplate('unknown')).toBeUndefined();
   });
 
   it('sanitizeSlidesOptions validates slideCount range and template', () => {
     expect(sanitizeSlidesOptions({ slideCount: 10, template: 'minimal' })).toEqual({ slideCount: 10, template: 'minimal' });
+    expect(sanitizeSlidesOptions({ slideCount: 10, template: 'gamma' })).toEqual({ slideCount: 10, template: 'gamma' });
+    expect(sanitizeSlidesOptions({ slideCount: 10, template: 'canva' })).toEqual({ slideCount: 10, template: 'canva' });
     expect(sanitizeSlidesOptions({})).toBeUndefined();
     expect(() => sanitizeSlidesOptions({ slideCount: 2 })).toThrow();
     expect(() => sanitizeSlidesOptions({ slideCount: 99 })).toThrow();

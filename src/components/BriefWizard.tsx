@@ -38,7 +38,7 @@ export interface BriefData {
     slides?: {
       /** PRD 기준: 3~15 */
       slideCount: number;
-      template: "default" | "minimal" | "creative";
+      template: "default" | "minimal" | "creative" | "gamma" | "canva";
     };
   };
 }
@@ -83,7 +83,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
     options: {
       enableWebSearch: (initialData as any)?.options?.enableWebSearch ?? true,
       enableImageGeneration: (initialData as any)?.options?.enableImageGeneration ?? true,
-      slides: (initialData as any)?.options?.slides ?? { slideCount: 10, template: "default" },
+      slides: (initialData as any)?.options?.slides ?? { slideCount: 10, template: "gamma" },
     },
   });
 
@@ -557,7 +557,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
                             ...formData.options,
                             slides: {
                               slideCount: Number(v) || 10,
-                              template: formData.options.slides?.template || "default",
+                              template: formData.options.slides?.template || "gamma",
                             },
                           },
                         })
@@ -591,7 +591,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
                             ...formData.options,
                             slides: {
                               slideCount: formData.options.slides?.slideCount ?? 10,
-                              template: (v as any) || "default",
+                              template: (v as any) || "gamma",
                             },
                           },
                         })
@@ -604,6 +604,8 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
                         <SelectItem value="default">Modern Professional (default)</SelectItem>
                         <SelectItem value="minimal">Minimal Clean</SelectItem>
                         <SelectItem value="creative">Creative Bold</SelectItem>
+                        <SelectItem value="gamma">Gamma Style (추천)</SelectItem>
+                        <SelectItem value="canva">Canva Style (추천)</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">

@@ -185,17 +185,48 @@ ${sourcesBlock}
 - 한 슬라이드에 핵심 포인트 3-5개
 - 각 슬라이드에 발표자 노트 필수 포함
 - 출처가 있으면 speakerNotes에 [n] 형태로 인용
+- Canva/Gamma처럼 "디자인이 적용된" 덱을 만들기 위해, 각 슬라이드에 layoutType을 반드시 포함
+  - 허용 layoutType: title_slide, section_header, title_and_content, two_column, content_with_image, diagram_slide, conclusion, sources
+- deckTheme를 포함해서 전체 덱의 스타일 프리셋을 명시 (style: default|minimal|creative|gamma|canva)
+- content_with_image/diagram_slide의 경우, 가능한 한 image/diagram 메타데이터를 채워주세요(검색 키워드/mermaid 코드 등)
 
 ## JSON 출력 형식 (이 형식만 출력하세요)
 {
   "deckTitle": "프레젠테이션 제목",
+  "deckTheme": {
+    "style": "gamma",
+    "palette": {
+      "primary": "#2563EB",
+      "secondary": "#64748B",
+      "background": "#FFFFFF",
+      "text": "#0B1220",
+      "mutedText": "#475569"
+    },
+    "typography": {
+      "headingFont": "Malgun Gothic",
+      "bodyFont": "Malgun Gothic"
+    },
+    "background": { "type": "gradient" }
+  },
   "slides": [
     {
       "slideNumber": 1,
+      "layoutType": "title_slide",
       "title": "슬라이드 제목",
       "bullets": ["핵심 포인트 1", "핵심 포인트 2", "핵심 포인트 3"],
       "speakerNotes": "발표자를 위한 상세 설명. 출처 인용 [1]",
-      "visualHint": "이미지/다이어그램 제안 (선택)"
+      "visualHint": "이미지/다이어그램 제안 (선택)",
+      "image": {
+        "required": false,
+        "searchKeywords": "professional modern business meeting",
+        "style": "professional"
+      },
+      "diagram": {
+        "required": false,
+        "type": "flowchart",
+        "mermaidCode": "flowchart TD\\n  A[Start] --> B[Step]\\n  B --> C[End]",
+        "caption": "프로세스 개요"
+      }
     }
   ],
   "sources": ["출처 URL 목록"]

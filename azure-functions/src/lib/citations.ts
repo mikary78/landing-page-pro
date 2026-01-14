@@ -103,6 +103,7 @@ export function enforceSlideCitationsAndDeckSources(
           ? '출처 목록 페이지입니다. 앞 슬라이드의 [n] 인용은 본 페이지의 Sources와 매칭됩니다.'
           : '웹 검색 결과가 없어 출처를 표시할 수 없습니다.',
       visualHint: 'Clean list layout with small font and plenty of whitespace.',
+      layoutType: 'sources',
     });
   }
 

@@ -1,4 +1,4 @@
-export type SlidesTemplate = 'default' | 'minimal' | 'creative';
+export type SlidesTemplate = 'default' | 'minimal' | 'creative' | 'gamma' | 'canva';
 
 export interface SlidesOptions {
   /** PRD 기준: 3~15 */
@@ -30,8 +30,8 @@ export function sanitizeSlidesOptions(raw: any): SlidesOptions | undefined {
 
   if (raw.template !== undefined) {
     const t = String(raw.template);
-    if (t !== 'default' && t !== 'minimal' && t !== 'creative') {
-      throw new Error('Invalid slides.template (default|minimal|creative)');
+    if (t !== 'default' && t !== 'minimal' && t !== 'creative' && t !== 'gamma' && t !== 'canva') {
+      throw new Error('Invalid slides.template (default|minimal|creative|gamma|canva)');
     }
     out.template = t as SlidesTemplate;
   }
@@ -47,7 +47,7 @@ export function resolveSlideCount(raw: any, fallback: number): number {
 
 export function resolveTemplate(raw: any): SlidesTemplate | undefined {
   const t = String(raw || '');
-  if (t === 'default' || t === 'minimal' || t === 'creative') return t;
+  if (t === 'default' || t === 'minimal' || t === 'creative' || t === 'gamma' || t === 'canva') return t;
   return undefined;
 }
 

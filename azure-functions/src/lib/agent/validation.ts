@@ -248,6 +248,24 @@ export function validateSlides(
     if (!slide.speakerNotes || slide.speakerNotes.trim().length === 0) {
       result.warnings.push(`슬라이드 ${num}에 발표자 노트가 없습니다`);
     }
+
+    // 5. Canva/Gamma 스타일 레이아웃 타입 검증 (optional이지만 있으면 검사)
+    const lt = (slide as any)?.layoutType;
+    const allowed = new Set([
+      'title_slide',
+      'section_header',
+      'title_and_content',
+      'two_column',
+      'content_with_image',
+      'diagram_slide',
+      'conclusion',
+      'sources',
+    ]);
+    if (lt !== undefined && typeof lt !== 'string') {
+      result.warnings.push(`슬라이드 ${num}의 layoutType이 문자열이 아닙니다`);
+    } else if (typeof lt === 'string' && !allowed.has(lt)) {
+      result.warnings.push(`슬라이드 ${num}의 layoutType 값이 허용 목록에 없습니다: ${lt}`);
+    }
   });
 
   result.isValid = result.issues.length === 0;

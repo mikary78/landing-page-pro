@@ -93,7 +93,7 @@ export default function GenerationStudioPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [previewTab, setPreviewTab] = useState<"pipeline" | "document" | "infographic" | "slides">("pipeline");
-  const [pptxTemplate, setPptxTemplate] = useState<"default" | "minimal" | "creative">("default");
+  const [pptxTemplate, setPptxTemplate] = useState<"default" | "minimal" | "creative" | "gamma" | "canva">("gamma");
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [selectedAiModel, setSelectedAiModel] = useState<string>("");
@@ -1317,6 +1317,8 @@ export default function GenerationStudioPage() {
                   <SelectItem value="default">Modern (default)</SelectItem>
                   <SelectItem value="minimal">Minimal</SelectItem>
                   <SelectItem value="creative">Creative</SelectItem>
+                  <SelectItem value="gamma">Gamma (추천)</SelectItem>
+                  <SelectItem value="canva">Canva (추천)</SelectItem>
                 </SelectContent>
               </Select>
             )}

@@ -5,7 +5,34 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type SlidesJson = {
   deckTitle?: string;
-  slides?: Array<{ title: string; bullets: string[]; speakerNotes?: string; visualHint?: string }>;
+  deckTheme?: {
+    style?: "default" | "minimal" | "creative" | "gamma" | "canva";
+    palette?: {
+      primary?: string;
+      secondary?: string;
+      background?: string;
+      text?: string;
+      mutedText?: string;
+    };
+    background?: { type?: "solid" | "gradient" | "image" };
+  };
+  slides?: Array<{
+    title: string;
+    bullets: string[];
+    speakerNotes?: string;
+    visualHint?: string;
+    layoutType?:
+      | "title_slide"
+      | "section_header"
+      | "title_and_content"
+      | "two_column"
+      | "content_with_image"
+      | "diagram_slide"
+      | "conclusion"
+      | "sources";
+    image?: { dataUrl?: string; searchKeywords?: string };
+    diagram?: { dataUrl?: string; caption?: string };
+  }>;
   sources?: Array<{ id: number; title?: string; url: string }>;
 };
 
@@ -82,16 +109,39 @@ export function SlidesCanvas({
 
     ctx.clearRect(0, 0, width, height);
 
+    const style = (data as any)?.deckTheme?.style as string | undefined;
+    const palette = (data as any)?.deckTheme?.palette || {};
+    const bgColor = palette.background || (style === "minimal" ? "#ffffff" : "#0b1220");
+    const textColor = palette.text || "#0b1220";
+    const mutedText = palette.mutedText || "rgba(17,24,39,0.62)";
+    const primary = palette.primary || (style === "creative" || style === "canva" ? "#f97316" : "#2563eb");
+    const secondary = palette.secondary || (style === "gamma" ? "#6366f1" : "#64748b");
+
     // slide background
     const bg = assets?.background?.dataUrl as string | undefined;
     const drawBg = () => {
-      ctx.fillStyle = "#0b1220";
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, width, height);
-      const grad = ctx.createLinearGradient(0, 0, width, height);
-      grad.addColorStop(0, "rgba(255,255,255,0.10)");
-      grad.addColorStop(1, "rgba(255,255,255,0.02)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
+      if (style !== "minimal") {
+        const grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, "rgba(255,255,255,0.10)");
+        grad.addColorStop(1, "rgba(255,255,255,0.02)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Gamma/Canva 느낌 장식(상단 좌/하단 우)
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = secondary;
+        ctx.beginPath();
+        ctx.arc(-40, -20, 180, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = primary;
+        ctx.beginPath();
+        ctx.arc(width + 40, height + 20, 200, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
 
       // inner content area
       ctx.fillStyle = "rgba(255,255,255,0.92)";
@@ -99,6 +149,12 @@ export function SlidesCanvas({
       roundRect(ctx, 18, 18, width - 36, height - 36, 16);
       ctx.fill();
       ctx.stroke();
+
+      // top accent bar
+      ctx.fillStyle = primary;
+      ctx.globalAlpha = 0.22;
+      ctx.fillRect(18, 18, width - 36, 8);
+      ctx.globalAlpha = 1;
     };
 
     if (bg) {
@@ -126,7 +182,7 @@ export function SlidesCanvas({
       let y = pad + 12;
       const maxW = width - pad * 2;
 
-      ctx.fillStyle = "#0b1220";
+      ctx.fillStyle = textColor;
       ctx.font = "700 20px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
       wrapText(ctx, data?.deckTitle || "Slide Deck", x, y, maxW, 26, 1);
 
@@ -139,26 +195,94 @@ export function SlidesCanvas({
         return;
       }
 
-      // slide title
-      ctx.fillStyle = "#111827";
-      ctx.font = "800 22px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-      y = wrapText(ctx, current.title || `Slide ${idx + 1}`, x, y, maxW, 28, 2);
-      y += 12;
+      const layout = (current as any)?.layoutType as string | undefined;
 
-      // bullets
-      ctx.fillStyle = "rgba(17,24,39,0.82)";
-      ctx.font = "600 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-      for (const b of (current.bullets || []).slice(0, 7)) {
-        ctx.fillText("•", x, y);
-        y = wrapText(ctx, b, x + 16, y, maxW - 16, 20, 2);
-        y += 4;
+      // 레이아웃별 렌더 (Canva/Gamma 느낌)
+      if (layout === "section_header") {
+        ctx.fillStyle = "#111827";
+        ctx.font = "900 46px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        y = wrapText(ctx, current.title || `Section`, x, y + 40, maxW, 54, 2);
+        y += 10;
+        ctx.fillStyle = mutedText;
+        ctx.font = "600 16px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        const hint = (current.bullets || []).slice(0, 2).join(" · ");
+        if (hint) wrapText(ctx, hint, x, y, maxW, 22, 2);
+      } else if (layout === "title_slide") {
+        ctx.fillStyle = "#0b1220";
+        ctx.font = "900 52px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        y = wrapText(ctx, current.title || data?.deckTitle || "Title", x, y + 40, maxW, 60, 2);
+        y += 10;
+        ctx.fillStyle = mutedText;
+        ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        const sub = (current.bullets || [])[0];
+        if (sub) wrapText(ctx, sub, x, y, maxW, 24, 2);
+      } else if (layout === "content_with_image" || layout === "two_column" || layout === "diagram_slide") {
+        // Title
+        ctx.fillStyle = "#111827";
+        ctx.font = "900 26px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        y = wrapText(ctx, current.title || `Slide ${idx + 1}`, x, y, maxW, 32, 2);
+        y += 10;
+
+        // Content grid
+        const leftW = Math.floor(maxW * 0.58);
+        const rightW = maxW - leftW - 14;
+        const leftX = x;
+        const rightX = x + leftW + 14;
+        const boxY = y;
+        const boxH = 300;
+
+        // left card
+        ctx.fillStyle = "rgba(255,255,255,1)";
+        ctx.strokeStyle = "rgba(2,6,23,0.08)";
+        roundRect(ctx, leftX, boxY, leftW, boxH, 14);
+        ctx.fill();
+        ctx.stroke();
+
+        // right placeholder
+        ctx.fillStyle = "rgba(2,6,23,0.05)";
+        ctx.strokeStyle = "rgba(2,6,23,0.10)";
+        roundRect(ctx, rightX, boxY, rightW, boxH, 14);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = mutedText;
+        ctx.font = "700 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        ctx.fillText(
+          layout === "diagram_slide" ? "DIAGRAM" : "IMAGE",
+          rightX + 14,
+          boxY + 22
+        );
+
+        // bullets (left)
+        let by = boxY + 24;
+        ctx.fillStyle = "rgba(17,24,39,0.82)";
+        ctx.font = "600 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        for (const b of (current.bullets || []).slice(0, 6)) {
+          ctx.fillText("•", leftX + 16, by);
+          by = wrapText(ctx, b, leftX + 32, by, leftW - 46, 20, 2);
+          by += 6;
+        }
+      } else {
+        // title_and_content / conclusion / sources 등: 기본 카드형
+        ctx.fillStyle = "#111827";
+        ctx.font = "900 26px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        y = wrapText(ctx, current.title || `Slide ${idx + 1}`, x, y, maxW, 32, 2);
+        y += 10;
+
+        ctx.fillStyle = "rgba(17,24,39,0.82)";
+        ctx.font = "600 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        for (const b of (current.bullets || []).slice(0, 7)) {
+          ctx.fillText("•", x, y);
+          y = wrapText(ctx, b, x + 16, y, maxW - 16, 20, 2);
+          y += 4;
+        }
       }
 
       // visual hint / notes
       const hint = current.visualHint || "";
       if (hint) {
         y += 10;
-        ctx.fillStyle = "rgba(17,24,39,0.62)";
+        ctx.fillStyle = mutedText;
         ctx.font = "500 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
         wrapText(ctx, `Visual hint: ${hint}`, x, y, maxW, 16, 3);
       }

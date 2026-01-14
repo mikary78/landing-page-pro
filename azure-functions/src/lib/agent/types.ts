@@ -112,6 +112,32 @@ export interface Slide {
   speakerNotes: string;
   visualHint?: string;
   citations?: string[];              // [1], [2] 형태
+  /**
+   * Canva/Gamma 스타일 레이아웃 타입(선택)
+   * - 기존 출력과의 호환을 위해 optional
+   */
+  layoutType?:
+    | 'title_slide'
+    | 'section_header'
+    | 'title_and_content'
+    | 'two_column'
+    | 'content_with_image'
+    | 'diagram_slide'
+    | 'conclusion'
+    | 'sources';
+
+  /** 이미지/다이어그램 메타(선택) - 실제 렌더러가 있으면 사용 */
+  image?: {
+    required?: boolean;
+    searchKeywords?: string; // 영문 키워드 권장(Unsplash/Pexels 등)
+    style?: 'professional' | 'modern' | 'minimalist' | 'creative';
+  };
+  diagram?: {
+    required?: boolean;
+    type?: 'flowchart' | 'sequence' | 'class' | 'er' | 'gantt' | 'pie';
+    mermaidCode?: string;
+    caption?: string;
+  };
 }
 
 /** 슬라이드 덱 출력 */
@@ -119,7 +145,34 @@ export interface SlideOutput {
   deckTitle: string;
   sessionNumber?: number;
   slides: Slide[];
-  sources: string[];                 // 참고 출처
+  /**
+   * 출처
+   * - Plan B 이후: deck-level sources가 표준화(객체 배열)될 수 있으므로 유연하게 허용
+   */
+  sources: any[];                 // string[] 또는 {id,title?,url}[] (legacy/backward compatible)
+
+  /** 덱 테마/디자인 토큰(선택) */
+  deckTheme?: {
+    /**
+     * 프론트(PPTX/Canvas)에서 해석할 스타일 프리셋
+     * - optional: 기존 덱은 없음
+     */
+    style?: 'default' | 'minimal' | 'creative' | 'gamma' | 'canva';
+    palette?: {
+      primary?: string;  // hex
+      secondary?: string; // hex
+      background?: string; // hex
+      text?: string; // hex
+      mutedText?: string; // hex
+    };
+    typography?: {
+      headingFont?: string;
+      bodyFont?: string;
+    };
+    background?: {
+      type?: 'solid' | 'gradient' | 'image';
+    };
+  };
 }
 
 // ============================================================
