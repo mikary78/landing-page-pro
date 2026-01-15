@@ -102,11 +102,17 @@ jobs:
           VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
           VITE_ENTRA_AUTHORITY: ${{ secrets.ENTRA_AUTHORITY }}
 
+      - name: Prepare deployment package
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp package.json package-lock.json deploy/
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-${{ steps.set-env.outputs.environment }}
-          path: dist/
+          path: deploy/
           retention-days: 7
 
   # 스테이징 배포
@@ -122,7 +128,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build-staging
-          path: dist/
+          path: ./
+
+      - name: Install production dependencies
+        run: npm ci --only=production
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -133,7 +142,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME_STAGING }}
-          package: dist/
+          package: ./
 
       - name: Azure logout
         run: az logout
@@ -151,7 +160,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build-production
-          path: dist/
+          path: ./
+
+      - name: Install production dependencies
+        run: npm ci --only=production
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -162,7 +174,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME_PROD }}
-          package: dist/
+          package: ./
 
       - name: Azure logout
         run: az logout
