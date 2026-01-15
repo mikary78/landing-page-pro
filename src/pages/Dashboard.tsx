@@ -43,6 +43,7 @@ type Project = {
   created_at: string;
   updated_at: string;
   is_converted_to_course?: boolean;
+  cover_image_url?: string;
 };
 
 type Course = {
@@ -313,7 +314,16 @@ const Dashboard = () => {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {projects.map((project) => (
-                    <Card key={project.id} className="hover:shadow-lg transition-shadow">
+                    <Card key={project.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+                      {project.cover_image_url && (
+                        <div className="w-full h-40 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
+                          <img
+                            src={project.cover_image_url}
+                            alt={`${project.title} 커버`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">

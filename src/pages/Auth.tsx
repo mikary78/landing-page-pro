@@ -42,10 +42,10 @@ const Auth = () => {
     
     // 인증되어 있고 사용자 정보가 있으면 리다이렉트
     if (isAuthenticated && user && user.id) {
-      console.log('[Auth] User authenticated, redirecting to home...');
+      console.log('[Auth] User authenticated, redirecting to dashboard...');
       // setTimeout을 사용하여 React Router 타이밍 이슈 방지
       setTimeout(() => {
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       }, 100);
     }
   }, [isAuthenticated, user, loading, navigate]);

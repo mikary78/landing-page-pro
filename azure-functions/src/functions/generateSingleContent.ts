@@ -17,7 +17,7 @@ import { getTargetAudienceGuide } from '../lib/agent/prompts';
 // 타입 정의
 // ============================================================
 
-type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
+type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes' | 'infographic';
 type AiModel = 'gemini' | 'claude' | 'chatgpt';
 
 interface SingleContentRequest {
@@ -31,6 +31,11 @@ interface SingleContentRequest {
     additionalInstructions?: string;
   };
   aiModel: AiModel;
+  aggregatedContent?: Array<{
+    type: string;
+    content: any;
+    markdown?: string;
+  }>;
 }
 
 interface GeneratedContent {
@@ -89,14 +94,17 @@ ${context.additionalInstructions ? `## 추가 지시사항\n${context.additional
 }
 
 // 2. 슬라이드
-function buildSlidesOnlyPrompt(context: SingleContentRequest['context']): { system: string; prompt: string } {
+function buildSlidesOnlyPrompt(
+  context: SingleContentRequest['context'],
+  aggregatedContent?: Array<{ type: string; content: any; markdown?: string }>
+): { system: string; prompt: string } {
   const audienceGuide = context.targetAudience
     ? getTargetAudienceGuide(context.targetAudience)
     : '';
 
   const system = `당신은 교육 프레젠테이션 설계 전문가입니다.
-프로젝트 생성에서 만들어진 기본 슬라이드를 실제 강의용으로 보강하고 개선합니다.
-reveal.js 웹 프레젠테이션 프레임워크를 활용하여 전문적인 슬라이드를 생성합니다.
+완성된 여러 콘텐츠를 취합하여 실제 강의용 슬라이드를 생성합니다.
+reveal.js 웹 프레젠테이션 프레임워크를 활용하며, flowchart/diagram 형태의 슬라이드도 포함합니다.
 ${audienceGuide}
 
 출력은 반드시 아래 JSON 형식으로 작성하세요:
@@ -115,6 +123,7 @@ ${audienceGuide}
         "code": "코드 예제 (선택사항, layout이 code일 때)",
         "quote": "인용문 (선택사항, layout이 quote일 때)",
         "imageUrl": "이미지 URL 제안 (선택사항)",
+        "mermaidDiagram": "Mermaid 다이어그램 코드 (flowchart, mindmap 등)",
         "columns": [
           {"title": "열1 제목", "content": ["항목1", "항목2"]},
           {"title": "열2 제목", "content": ["항목1", "항목2"]}
@@ -147,15 +156,27 @@ ${audienceGuide}
 - 교육 대상: ${context.targetAudience || '일반'}
 - 시간: ${context.duration || '60분'}
 
+## 기존 생성된 콘텐츠
+${aggregatedContent && aggregatedContent.length > 0
+    ? aggregatedContent
+        .map(
+          (item) =>
+            `### ${item.type}\n${item.markdown || JSON.stringify(item.content, null, 2).substring(0, 500)}`
+        )
+        .join('\n\n')
+    : '없음 (레슨 기본 정보만 사용)'}
+
 ${context.additionalInstructions ? `## 추가 지시사항\n${context.additionalInstructions}` : ''}
 
 ## 요청
-위 레슨의 reveal.js 프레젠테이션을 생성해주세요.
+위 레슨의 콘텐츠를 분석하여 reveal.js 프레젠테이션을 생성해주세요.
 - 총 10-15장 구성 (도입-본론-정리 구조)
 - 다양한 레이아웃 활용 (title, content, two-column, image-text, quote, code)
 - 각 슬라이드: 명확한 제목, 3-5개 핵심 포인트, 상세한 발표자 노트
+- **flowchart/diagram 슬라이드 2-3개 포함**: mermaidDiagram 필드에 Mermaid 코드 작성
 - 적절한 전환 효과 및 배경 설정
-- 학습자의 이해를 돕는 예시와 사례 포함`;
+- 학습자의 이해를 돕는 예시와 사례 포함
+- UI/UX를 고려한 시각적 구성`;
 
   return { system, prompt };
 }
@@ -449,6 +470,83 @@ ${context.additionalInstructions ? `## 추가 지시사항\n${context.additional
   return { system, prompt };
 }
 
+// 8. 인포그래픽 (Infographic)
+function buildInfographicPrompt(
+  context: SingleContentRequest['context'],
+  aggregatedContent?: Array<{ type: string; content: any; markdown?: string }>
+): { system: string; prompt: string } {
+  const audienceGuide = context.targetAudience
+    ? getTargetAudienceGuide(context.targetAudience)
+    : '';
+
+  const system = `당신은 교육 콘텐츠 시각화 전문가입니다.
+완성된 여러 콘텐츠를 분석하여 학습 내용을 시각적으로 표현하는 인포그래픽을 생성합니다.
+Mermaid 다이어그램을 활용하여 flowchart, mindmap, timeline 등 다양한 형식으로 표현합니다.
+${audienceGuide}
+
+출력은 반드시 아래 JSON 형식으로 작성하세요:
+{
+  "title": "인포그래픽 제목",
+  "description": "인포그래픽 설명",
+  "sections": [
+    {
+      "title": "섹션 제목",
+      "items": ["핵심 포인트 1", "핵심 포인트 2", "핵심 포인트 3"],
+      "content": "상세 설명 (선택사항)"
+    }
+  ],
+  "diagram": "Mermaid 다이어그램 코드 (flowchart TD 등으로 시작하는 완전한 코드)"
+}
+
+**Mermaid 다이어그램 작성 가이드:**
+- flowchart TD/LR: 프로세스, 학습 흐름, 의사결정 과정 표현
+- mindmap: 개념 구조, 핵심 주제와 하위 항목 관계
+- timeline: 시간순 진행, 단계별 학습 과정
+- graph TD/LR: 관계도, 연결 구조
+
+**다이어그램 작성 규칙:**
+1. 노드 ID는 영문자로 시작 (예: A, B, Start, Process1)
+2. 한글 레이블은 대괄호나 따옴표 사용 (예: A["시작"], B("프로세스"))
+3. 화살표로 흐름 표현 (-->, -.->, ==>, -.->)
+4. 스타일과 색상으로 중요도 표현`;
+
+  const prompt = `## 레슨 정보
+- 제목: ${context.lessonTitle}
+- 학습 목표: ${context.learningObjectives?.join('\n  - ') || '없음'}
+- 교육 대상: ${context.targetAudience || '일반'}
+
+## 기존 생성된 콘텐츠
+${aggregatedContent && aggregatedContent.length > 0
+    ? aggregatedContent
+        .map(
+          (item) =>
+            `### ${item.type}\n${item.markdown || JSON.stringify(item.content, null, 2).substring(0, 500)}`
+        )
+        .join('\n\n')
+    : '없음 (레슨 기본 정보만 사용)'}
+
+${context.additionalInstructions ? `## 추가 지시사항\n${context.additionalInstructions}` : ''}
+
+## 요청
+위 레슨의 콘텐츠를 분석하여 학습 내용을 시각적으로 표현하는 인포그래픽을 만들어주세요.
+- 3-5개의 주요 섹션으로 구성
+- 각 섹션: 제목과 3-5개 핵심 포인트
+- **Mermaid 다이어그램 1개**: 전체 학습 흐름이나 개념 구조를 flowchart, mindmap, 또는 timeline 형식으로 표현
+- 다이어그램은 최대한 UI/UX를 고려하여 가독성 높게 작성
+- 복잡한 개념은 단계별로 나누어 표현
+
+**중요**: diagram 필드에는 완전한 Mermaid 코드를 포함하세요. 예시:
+\`\`\`
+flowchart TD
+    Start["학습 시작"] --> A["1단계: 기초 개념"]
+    A --> B["2단계: 실습"]
+    B --> C["3단계: 평가"]
+    C --> End["학습 완료"]
+\`\`\``;
+
+  return { system, prompt };
+}
+
 // ============================================================
 // AI 모델 호출
 // ============================================================
@@ -511,16 +609,19 @@ export async function generateSingleContent(
 
   try {
     const body = await request.json() as SingleContentRequest;
-    const { lessonId, contentType, context: contentContext, aiModel } = body;
+    const { lessonId, contentType, context: contentContext, aiModel, aggregatedContent } = body;
 
     if (!lessonId || !contentType || !aiModel) {
-      return jsonResponse(400, { 
-        success: false, 
-        error: 'lessonId, contentType, and aiModel are required' 
+      return jsonResponse(400, {
+        success: false,
+        error: 'lessonId, contentType, and aiModel are required'
       });
     }
 
     context.log(`[generateSingleContent] lessonId=${lessonId}, contentType=${contentType}, aiModel=${aiModel}`);
+    if (aggregatedContent) {
+      context.log(`[generateSingleContent] aggregatedContent provided: ${aggregatedContent.length} items`);
+    }
 
     // 레슨 정보 조회
     const lessonRows = await query<any>(
@@ -541,7 +642,7 @@ export async function generateSingleContent(
     // 컨텍스트 보강
     const enrichedContext = {
       lessonTitle: contentContext.lessonTitle || lesson.title,
-      learningObjectives: contentContext.learningObjectives || 
+      learningObjectives: contentContext.learningObjectives ||
         (lesson.learning_objectives?.split('\n').filter(Boolean) || []),
       targetAudience: contentContext.targetAudience || lesson.target_audience,
       duration: contentContext.duration || lesson.total_duration,
@@ -549,17 +650,25 @@ export async function generateSingleContent(
     };
 
     // 콘텐츠 타입별 프롬프트 생성
-    const promptBuilders: Record<ContentType, (ctx: typeof enrichedContext) => { system: string; prompt: string }> = {
-      lesson_plan: buildLessonPlanPrompt,
-      slides: buildSlidesOnlyPrompt,
-      hands_on_activity: buildHandsOnActivityPrompt,
-      assessment: buildAssessmentPrompt,
-      supplementary_materials: buildSupplementaryMaterialsPrompt,
-      discussion_prompts: buildDiscussionPromptsPrompt,
-      instructor_notes: buildInstructorNotesPrompt,
-    };
+    let system: string;
+    let prompt: string;
 
-    const { system, prompt } = promptBuilders[contentType](enrichedContext);
+    if (contentType === 'slides' || contentType === 'infographic') {
+      // 슬라이드와 인포그래픽은 aggregatedContent를 전달
+      const builder = contentType === 'slides' ? buildSlidesOnlyPrompt : buildInfographicPrompt;
+      ({ system, prompt } = builder(enrichedContext, aggregatedContent));
+    } else {
+      // 다른 콘텐츠 타입은 기존 방식 유지
+      const promptBuilders: Record<Exclude<ContentType, 'slides' | 'infographic'>, (ctx: typeof enrichedContext) => { system: string; prompt: string }> = {
+        lesson_plan: buildLessonPlanPrompt,
+        hands_on_activity: buildHandsOnActivityPrompt,
+        assessment: buildAssessmentPrompt,
+        supplementary_materials: buildSupplementaryMaterialsPrompt,
+        discussion_prompts: buildDiscussionPromptsPrompt,
+        instructor_notes: buildInstructorNotesPrompt,
+      };
+      ({ system, prompt } = promptBuilders[contentType](enrichedContext));
+    }
 
     // AI 모델 호출
     const rawResult = await callAiModel(aiModel, prompt, system, context);
@@ -573,7 +682,7 @@ export async function generateSingleContent(
       markdown = rawResult;
       parsedContent = { markdown: rawResult };
     } else {
-      // JSON 형식 파싱 시도 (slides, assessment, hands_on_activity, supplementary_materials)
+      // JSON 형식 파싱 시도 (slides, assessment, hands_on_activity, supplementary_materials, infographic)
       try {
         const jsonMatch = rawResult.match(/```json\n?([\s\S]*?)\n?```/) ||
                           rawResult.match(/\{[\s\S]*\}/);

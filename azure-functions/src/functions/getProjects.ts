@@ -24,7 +24,7 @@ export async function getProjects(
       [user.userId, user.name || user.email || 'Unknown User']
     );
 
-    // Get projects for user (모든 프로젝트 포함, 코스 변환 여부 표시)
+    // Get projects for user (모든 프로젝트 포함, 코스 변환 여부 및 커버 이미지 포함)
     const projects = await query(
       `SELECT
         p.id,
@@ -48,7 +48,19 @@ export async function getProjects(
             SELECT 1 FROM lessons WHERE project_id = p.id
           ) THEN true
           ELSE false
-        END as is_converted_to_course
+        END as is_converted_to_course,
+        (
+          SELECT ga.assets->'background'->>'dataUrl'
+          FROM generation_jobs gj
+          JOIN generation_artifacts ga ON gj.id = ga.job_id
+          WHERE gj.project_id = p.id
+            AND ga.artifact_type = 'cover'
+            AND ga.assets IS NOT NULL
+            AND ga.assets->'background' IS NOT NULL
+            AND ga.assets->'background'->>'dataUrl' IS NOT NULL
+          ORDER BY ga.created_at DESC
+          LIMIT 1
+        ) as cover_image_url
        FROM projects p
        WHERE p.user_id = $1
        ORDER BY p.created_at DESC`,

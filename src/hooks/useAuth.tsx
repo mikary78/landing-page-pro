@@ -71,7 +71,7 @@ export const useAuth = () => {
         description: "환영합니다!",
       });
       
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       console.error('[useAuth] Sign up error:', error);
@@ -96,7 +96,7 @@ export const useAuth = () => {
         description: "환영합니다!",
       });
       
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       console.error('[useAuth] Sign in error:', error);
@@ -151,7 +151,7 @@ export const useAuth = () => {
         description: "환영합니다!",
       });
       
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       toast({
@@ -174,7 +174,7 @@ export const useAuth = () => {
         title: "로그아웃 완료",
       });
       
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       console.error('[useAuth] Sign out error:', error);

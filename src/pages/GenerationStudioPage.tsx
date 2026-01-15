@@ -428,28 +428,27 @@ export default function GenerationStudioPage() {
       }
     }
 
-    // 디자인/삽화 이미지 생성 결과 - 특별 렌더링
+    // 프로젝트 커버 이미지 생성 결과 - 특별 렌더링
     if (step.step_type === "design_assets" || step.step_type === "design_illustration") {
       const output = step.output || {};
-      
-      // 이미지가 artifacts에 있는 경우 (infographic 또는 slides의 assets에서 가져오기)
-      const infographicAssets = artifactsByType.get("infographic")?.assets;
-      const slidesAssets = artifactsByType.get("slides")?.assets;
-      const imageDataUrl = infographicAssets?.background?.dataUrl 
-        || slidesAssets?.background?.dataUrl
-        || output.background?.dataUrl 
+
+      // 프로젝트 커버는 'cover' artifact에서 가져오기
+      const coverAssets = artifactsByType.get("cover")?.assets;
+      const imageDataUrl = coverAssets?.background?.dataUrl
+        || output.cover?.dataUrl
+        || output.background?.dataUrl
         || output.dataUrl;
-      
+
       if (imageDataUrl) {
-        const imageInfo = infographicAssets?.background || slidesAssets?.background || output.background || {};
+        const imageInfo = coverAssets?.background || output.cover || output.background || {};
         return (
           <div className="space-y-4">
             <div>
-              <h4 className="font-medium text-sm mb-2">생성된 배경 이미지</h4>
+              <h4 className="font-medium text-sm mb-2">생성된 프로젝트 커버</h4>
               <div className="border rounded-lg overflow-hidden bg-muted/50">
-                <img 
-                  src={imageDataUrl} 
-                  alt="Generated design asset" 
+                <img
+                  src={imageDataUrl}
+                  alt="Generated project cover"
                   className="w-full h-auto max-h-96 object-contain"
                 />
               </div>
@@ -492,17 +491,15 @@ export default function GenerationStudioPage() {
     return <div className="text-muted-foreground text-sm">알 수 없는 형식</div>;
   };
 
-  // 배경 이미지 다운로드
+  // 프로젝트 커버 다운로드
   const handleDownloadBackgroundImage = () => {
-    const infographicArtifact = jobState.artifacts.find(a => a.artifact_type === 'infographic');
-    const slidesArtifact = jobState.artifacts.find(a => a.artifact_type === 'slides');
+    const coverArtifact = jobState.artifacts.find(a => a.artifact_type === 'cover');
 
-    // 인포그래픽 또는 슬라이드의 배경 이미지 가져오기
-    const backgroundDataUrl = infographicArtifact?.assets?.background?.dataUrl ||
-                             slidesArtifact?.assets?.background?.dataUrl;
+    // 프로젝트 커버 이미지 가져오기
+    const backgroundDataUrl = coverArtifact?.assets?.background?.dataUrl;
 
     if (!backgroundDataUrl) {
-      toast.error("배경 이미지가 생성되지 않았습니다.");
+      toast.error("프로젝트 커버가 생성되지 않았습니다.");
       return;
     }
 
@@ -521,13 +518,13 @@ export default function GenerationStudioPage() {
     // 다운로드
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${project?.title || '프로젝트'}_배경이미지.png`;
+    link.download = `${project?.title || '프로젝트'}_커버이미지.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 
-    toast.success("배경 이미지가 다운로드되었습니다.");
+    toast.success("프로젝트 커버가 다운로드되었습니다.");
   };
 
   // 다운로드 기능들
@@ -1387,7 +1384,7 @@ export default function GenerationStudioPage() {
                   </SelectItem>
                   <SelectItem value="bg-image">
                     <div className="flex items-center gap-2">
-                      <Download className="h-3 w-3" />배경 이미지 (PNG)
+                      <Download className="h-3 w-3" />프로젝트 커버 (PNG)
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -1764,29 +1761,16 @@ export default function GenerationStudioPage() {
                         // 모든 생성된 이미지 수집
                         const allImages: Array<{ type: string; dataUrl: string; prompt?: string; model?: string; createdAt?: string; source: string }> = [];
 
-                        // 인포그래픽 배경 이미지
-                        const infographicArtifact = artifactsByType.get("infographic");
-                        if (infographicArtifact?.assets?.background?.dataUrl) {
+                        // 프로젝트 커버
+                        const coverArtifact = artifactsByType.get("cover");
+                        if (coverArtifact?.assets?.background?.dataUrl) {
                           allImages.push({
-                            type: '인포그래픽 배경',
-                            dataUrl: infographicArtifact.assets.background.dataUrl,
-                            prompt: infographicArtifact.assets.background.prompt,
-                            model: infographicArtifact.assets.background.model,
-                            createdAt: infographicArtifact.assets.background.createdAt,
-                            source: 'infographic'
-                          });
-                        }
-
-                        // 슬라이드 배경 이미지
-                        const slidesArtifact = artifactsByType.get("slides");
-                        if (slidesArtifact?.assets?.background?.dataUrl) {
-                          allImages.push({
-                            type: '슬라이드 배경',
-                            dataUrl: slidesArtifact.assets.background.dataUrl,
-                            prompt: slidesArtifact.assets.background.prompt,
-                            model: slidesArtifact.assets.background.model,
-                            createdAt: slidesArtifact.assets.background.createdAt,
-                            source: 'slides'
+                            type: '프로젝트 커버',
+                            dataUrl: coverArtifact.assets.background.dataUrl,
+                            prompt: coverArtifact.assets.background.prompt,
+                            model: coverArtifact.assets.background.model,
+                            createdAt: coverArtifact.assets.background.createdAt,
+                            source: 'cover'
                           });
                         }
 

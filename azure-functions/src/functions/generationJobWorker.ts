@@ -735,7 +735,7 @@ JSON 스키마 예시:
 
     // 3. 결과 반환
     const outputSummary = {
-      background: { model: bg.model, createdAt: bg.createdAt },
+      cover: { model: bg.model, createdAt: bg.createdAt }, // 'background' → 'cover'로 변경
       illustrations: illustrations.map(ill => ({
         slideNumber: ill.slideNumber,
         title: ill.title,
@@ -744,14 +744,19 @@ JSON 스키마 예시:
       })),
     };
 
+    // 프로젝트 커버 이미지는 독립적인 artifact로 저장 (슬라이드/인포그래픽 배경으로 사용하지 않음)
     const artifacts: any[] = [
-      { type: 'infographic', assets: { background: bg }, markCompleted: false },
-      { type: 'slides', assets: { background: bg, illustrations }, markCompleted: false },
+      { type: 'cover', assets: { background: bg }, markCompleted: false }, // 프로젝트 커버 전용
     ];
 
+    // illustrations가 있으면 slides artifact에 추가 (background 제외)
+    if (illustrations.length > 0) {
+      artifacts.push({ type: 'slides', assets: { illustrations }, markCompleted: false });
+    }
+
     const logMessage = illustrations.length > 0
-      ? `디자인 에셋 생성 완료: 배경 이미지 1개 + 삽화 ${illustrations.length}개`
-      : '디자인 배경 이미지 생성 완료';
+      ? `프로젝트 커버 생성 완료: 커버 이미지 1개 + 삽화 ${illustrations.length}개`
+      : '프로젝트 커버 이미지 생성 완료';
 
     return {
       log: logMessage,

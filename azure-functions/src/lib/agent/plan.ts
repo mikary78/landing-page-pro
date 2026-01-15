@@ -41,7 +41,7 @@ export interface GenerationOptions {
    */
   slides?: {
     slideCount?: number;
-    template?: 'default' | 'minimal' | 'creative';
+    template?: 'default' | 'minimal' | 'creative' | 'gamma' | 'canva';
   };
 }
 
@@ -100,7 +100,7 @@ export function planGenerationSteps(
 
     // 이미지/디자인 에셋 생성 (선택적)
     if (options.enableImageGeneration && (outputs.infographic || outputs.slides || outputs.document)) {
-      steps.push({ stepType: 'design_assets', title: '디자인/삽화 생성(이미지)', estimatedMinutes: 2 });
+      steps.push({ stepType: 'design_assets', title: '프로젝트 커버', estimatedMinutes: 2 });
     }
 
     return steps;
@@ -126,7 +126,7 @@ export function planGenerationSteps(
   }
 
   if (options.enableImageGeneration && (outputs.infographic || outputs.slides || outputs.document)) {
-    steps.push({ stepType: 'design_assets', title: '디자인/삽화 생성(이미지)' });
+    steps.push({ stepType: 'design_assets', title: '프로젝트 커버' });
   }
 
   return steps;

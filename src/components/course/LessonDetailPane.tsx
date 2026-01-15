@@ -78,7 +78,7 @@ interface LessonDetailPaneProps {
   courseId: string;
 }
 
-type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
+type ContentType = 'lesson_plan' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes' | 'slides' | 'infographic';
 
 const AI_MODELS = [
   { value: "gemini", label: "Gemini", description: "Google AI" },
@@ -86,14 +86,15 @@ const AI_MODELS = [
   { value: "chatgpt", label: "ChatGPT", description: "OpenAI" },
 ];
 
-const CONTENT_TYPES: { type: ContentType; label: string; icon: any; description: string }[] = [
+const CONTENT_TYPES: { type: ContentType; label: string; icon: any; description: string; requiresContent?: boolean; special?: boolean }[] = [
   { type: 'lesson_plan', label: '레슨 플랜', icon: BookOpen, description: '상세한 수업 계획 및 학습 활동 구성' },
-  { type: 'slides', label: '슬라이드', icon: Presentation, description: '프레젠테이션 슬라이드 보강 및 재생성' },
   { type: 'hands_on_activity', label: '실습 활동', icon: ClipboardList, description: '단계별 실습 가이드 및 예제 코드' },
   { type: 'assessment', label: '평가', icon: CheckSquare, description: '퀴즈, 과제, 루브릭 등 종합 평가' },
   { type: 'supplementary_materials', label: '보충 자료', icon: FileText, description: '참고 문헌, 심화 자료, 사례 연구' },
   { type: 'discussion_prompts', label: '토론 주제', icon: MessageCircle, description: '토론 질문 및 협업 활동 프롬프트' },
   { type: 'instructor_notes', label: '강사 노트', icon: Lightbulb, description: '티칭 가이드, FAQ, 난이도 조절 팁' },
+  { type: 'slides', label: '슬라이드', icon: Presentation, description: '완성된 콘텐츠를 바탕으로 프레젠테이션 생성', requiresContent: true, special: true },
+  { type: 'infographic', label: '인포그래픽', icon: Sparkles, description: '완성된 콘텐츠를 시각적 다이어그램으로 변환', requiresContent: true, special: true },
 ];
 
 const STYLE_OPTIONS = [
@@ -124,6 +125,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     supplementary_materials: null,
     discussion_prompts: null,
     instructor_notes: null,
+    infographic: null,
   });
   
   // 현재 생성 중인 콘텐츠 타입
@@ -258,6 +260,29 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       setGenerating(true);
       setGeneratingType(contentType);
 
+      // 슬라이드와 인포그래픽은 기존 콘텐츠를 취합하여 생성
+      let aggregatedContent = null;
+      if (contentType === 'slides' || contentType === 'infographic') {
+        const existingContents = Object.entries(generatedContents)
+          .filter(([key, value]) =>
+            key !== 'slides' &&
+            key !== 'infographic' &&
+            value !== null
+          )
+          .map(([key, value]) => ({
+            type: key,
+            content: value?.content,
+            markdown: value?.markdown,
+          }));
+
+        if (existingContents.length === 0) {
+          toast.error('슬라이드/인포그래픽을 생성하려면 최소 1개 이상의 콘텐츠가 필요합니다.');
+          return;
+        }
+
+        aggregatedContent = existingContents;
+      }
+
       const { data, error } = await callAzureFunctionDirect<{
         success: boolean;
         data: GeneratedContent;
@@ -270,6 +295,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
           learningObjectives: lesson.learning_objectives?.split('\n').filter(Boolean) || [],
         },
         aiModel: selectedAiModel,
+        aggregatedContent, // 슬라이드/인포그래픽용 취합된 콘텐츠
       });
 
       if (error) throw error;
@@ -413,6 +439,54 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
           content={data}
           lessonTitle={lessonTitle}
         />
+      );
+    }
+
+    if (contentType === 'infographic') {
+      return (
+        <div className="space-y-6 bg-gradient-to-br from-blue-50 to-purple-50 p-8 rounded-2xl">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-bold mb-2">{data.title || lessonTitle}</h3>
+            {data.description && (
+              <p className="text-muted-foreground">{data.description}</p>
+            )}
+          </div>
+
+          {/* 주요 섹션들 */}
+          {data.sections && Array.isArray(data.sections) && data.sections.map((section: any, idx: number) => (
+            <div key={idx} className="bg-white p-6 rounded-xl shadow-sm">
+              <h4 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-500" />
+                {section.title}
+              </h4>
+              {section.items && Array.isArray(section.items) && (
+                <ul className="space-y-2">
+                  {section.items.map((item: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckSquare className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {section.content && (
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {section.content}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* 다이어그램/플로우차트 */}
+          {data.diagram && (
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <h4 className="text-lg font-bold mb-3">프로세스 다이어그램</h4>
+              <div className="text-sm whitespace-pre-wrap font-mono bg-slate-50 p-4 rounded-lg">
+                {data.diagram}
+              </div>
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -617,29 +691,68 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
         </CardHeader>
         <CardContent>
           {!comparisonMode ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {CONTENT_TYPES.map(({ type, label, icon: Icon, description }) => {
-                const hasContent = generatedContents[type] !== null;
-                const isGenerating = generatingType === type;
+            <div className="space-y-4">
+              {/* 일반 콘텐츠 */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {CONTENT_TYPES.filter(ct => !ct.special).map(({ type, label, icon: Icon, description }) => {
+                  const hasContent = generatedContents[type] !== null;
+                  const isGenerating = generatingType === type;
 
-                return (
-                  <Button
-                    key={type}
-                    variant={hasContent ? "secondary" : "outline"}
-                    className="h-auto py-4 flex-col gap-2"
-                    disabled={generating}
-                    onClick={() => handleGenerateSingleContent(type)}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    ) : (
-                      <Icon className="h-6 w-6" />
-                    )}
-                    <span className="font-medium">{label}</span>
-                    <span className="text-xs text-muted-foreground">{isGenerating ? '생성 중...' : (hasContent ? '재생성' : '생성')}</span>
-                  </Button>
-                );
-              })}
+                  return (
+                    <Button
+                      key={type}
+                      variant={hasContent ? "secondary" : "outline"}
+                      className="h-auto py-4 flex-col gap-2"
+                      disabled={generating}
+                      onClick={() => handleGenerateSingleContent(type)}
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      ) : (
+                        <Icon className="h-6 w-6" />
+                      )}
+                      <span className="font-medium">{label}</span>
+                      <span className="text-xs text-muted-foreground">{isGenerating ? '생성 중...' : (hasContent ? '재생성' : '생성')}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* 슬라이드 & 인포그래픽 (특별 콘텐츠) */}
+              <div className="border-t pt-4">
+                <div className="text-sm font-medium mb-3 text-primary">통합 콘텐츠 생성</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {CONTENT_TYPES.filter(ct => ct.special).map(({ type, label, icon: Icon, description, requiresContent }) => {
+                    const hasContent = generatedContents[type] !== null;
+                    const isGenerating = generatingType === type;
+                    const hasOtherContent = Object.keys(generatedContents).some(
+                      key => key !== type && key !== 'slides' && key !== 'infographic' && generatedContents[key] !== null
+                    );
+                    const isDisabled = requiresContent && !hasOtherContent;
+
+                    return (
+                      <Button
+                        key={type}
+                        variant={hasContent ? "default" : "outline"}
+                        className={`h-auto py-4 flex-col gap-2 ${hasContent ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600' : 'border-primary/50'}`}
+                        disabled={generating || isDisabled}
+                        onClick={() => handleGenerateSingleContent(type)}
+                        title={isDisabled ? '먼저 다른 콘텐츠를 1개 이상 생성하세요' : description}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                        ) : (
+                          <Icon className="h-6 w-6" />
+                        )}
+                        <span className="font-medium">{label}</span>
+                        <span className="text-xs opacity-80">
+                          {isGenerating ? '생성 중...' : isDisabled ? '콘텐츠 필요' : hasContent ? '재생성' : '생성'}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
