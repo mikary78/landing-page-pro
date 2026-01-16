@@ -5,7 +5,7 @@
  * 구형 (simple) 및 신형 (reveal.js) 형식 모두 지원
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -39,9 +39,6 @@ interface SlidePreviewProps {
 }
 
 export const SlidePreview = ({ content, lessonTitle }: SlidePreviewProps) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [fullscreen, setFullscreen] = useState(false);
-
   // 슬라이드 데이터 파싱
   const slideData: SlideContent = typeof content === 'string'
     ? JSON.parse(content)
@@ -53,34 +50,41 @@ export const SlidePreview = ({ content, lessonTitle }: SlidePreviewProps) => {
   // 신형 reveal.js 형식인지 확인
   const isRevealFormat = slideData.theme || (slides.length > 0 && slides[0].layout);
 
-  // reveal.js 형식이면 RevealSlidePreview 사용
+  // reveal.js 형식이면 RevealSlidePreview 사용 (조기 반환)
   if (isRevealFormat) {
     return <RevealSlidePreview content={content} lessonTitle={lessonTitle} />;
   }
 
-  // 이하 구형 형식 처리 (기존 코드)
+  // 이하는 구형 SlidePreview 컴포넌트로 분리
+  return <LegacySlidePreview slides={slides} deckTitle={deckTitle} lessonTitle={lessonTitle} />;
+};
 
-  const handlePrevSlide = () => {
+// 구형 슬라이드 프리뷰 컴포넌트
+const LegacySlidePreview = ({ slides, deckTitle, lessonTitle }: { slides: Slide[], deckTitle: string, lessonTitle: string }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const handlePrevSlide = useCallback(() => {
     setCurrentSlide(prev => Math.max(0, prev - 1));
-  };
+  }, []);
 
-  const handleNextSlide = () => {
+  const handleNextSlide = useCallback(() => {
     setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1));
-  };
+  }, []);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'ArrowLeft') handlePrevSlide();
     if (e.key === 'ArrowRight') handleNextSlide();
     if (e.key === 'Escape') setFullscreen(false);
-  };
+  }, [handlePrevSlide, handleNextSlide]);
 
   // 키보드 이벤트 리스너
-  useState(() => {
+  useEffect(() => {
     if (fullscreen) {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  });
+  }, [fullscreen, handleKeyDown]);
 
   const handleDownloadPPTX = () => {
     try {
