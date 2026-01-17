@@ -1580,8 +1580,28 @@ export default function GenerationStudioPage() {
                       setChatMessages((prev) => [...prev, { role: "user", content: msg, createdAt: new Date().toISOString() }]);
 
                       try {
-                        const targets = { document: true };
-                        const res = await generationChat({ projectId: id, message: msg, targets });
+                        // 동적으로 target 설정: 메시지 내용 또는 현재 탭 기준
+                        const msgLower = msg.toLowerCase();
+                        const hasDocumentKeyword = /(강의안|문서|document|교재)/i.test(msg);
+                        const hasInfographicKeyword = /(인포그래픽|infographic|다이어그램|diagram)/i.test(msg);
+                        const hasSlidesKeyword = /(슬라이드|교안|slides|deck|프레젠테이션|presentation)/i.test(msg);
+
+                        // 키워드가 명시되지 않은 경우 현재 보고 있는 탭 기준
+                        const targets = {
+                          document: hasDocumentKeyword || (!hasInfographicKeyword && !hasSlidesKeyword && previewTab === "document"),
+                          infographic: hasInfographicKeyword || (!hasDocumentKeyword && !hasSlidesKeyword && previewTab === "infographic"),
+                          slides: hasSlidesKeyword || (!hasDocumentKeyword && !hasInfographicKeyword && previewTab === "slides"),
+                        };
+
+                        // 아무 target도 선택되지 않은 경우 (질문이나 일반 대화)
+                        const hasAnyTarget = targets.document || targets.infographic || targets.slides;
+
+                        const res = await generationChat({
+                          projectId: id,
+                          message: msg,
+                          targets: hasAnyTarget ? targets : undefined,
+                          aiModel: selectedAiModel as 'gemini' | 'claude' | 'chatgpt'
+                        });
                         if (res.error) throw res.error;
                         const assistant = res.data?.assistantMessage || "요청을 접수했습니다.";
                         setChatMessages((prev) => [
