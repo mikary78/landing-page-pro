@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { ContentType } from "@/types/content";
 
 // ============================================================
 // 타입 정의
@@ -67,18 +68,16 @@ interface Project {
   updated_at: string;
 }
 
-interface GeneratedContent {
-  contentType: string;
-  content: any;
-  markdown?: string;
-}
-
 interface LessonDetailPaneProps {
   lessonId: string;
   courseId: string;
 }
 
-type ContentType = 'lesson_plan' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes' | 'slides' | 'infographic';
+interface GeneratedContent {
+  contentType: string;
+  content: any;
+  markdown?: string;
+}
 
 const AI_MODELS = [
   { value: "gemini", label: "Gemini", description: "Google AI" },
@@ -982,9 +981,9 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                               Word 형식 (.docx)
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => {
+                              onClick={async () => {
                                 try {
-                                  downloadAsPDF(content, `${lesson.title}_${label}`, type);
+                                  await downloadAsPDF(content, `${lesson.title}_${label}`, type);
                                   toast.success("PDF 파일이 다운로드되었습니다.");
                                 } catch (error) {
                                   toast.error("PDF 파일 다운로드에 실패했습니다.");
@@ -994,6 +993,22 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                               <FileText className="h-4 w-4 mr-2" />
                               PDF 형식
                             </DropdownMenuItem>
+                            {type === 'slides' && (
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  try {
+                                    const { downloadSlidesAsPPTX } = await import('@/lib/downloadUtils');
+                                    await downloadSlidesAsPPTX(content.content, `${lesson.title}_슬라이드`);
+                                    toast.success("PowerPoint 파일이 다운로드되었습니다.");
+                                  } catch (error) {
+                                    toast.error("PowerPoint 파일 다운로드에 실패했습니다.");
+                                  }
+                                }}
+                              >
+                                <Presentation className="h-4 w-4 mr-2" />
+                                PowerPoint 형식 (.pptx)
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
 

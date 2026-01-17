@@ -8,8 +8,7 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-
-type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes' | 'infographic';
+import { ContentType } from '@/types/content';
 
 interface GeneratedContent {
   contentType: string;
@@ -97,34 +96,95 @@ export const downloadAsWord = async (content: GeneratedContent, filename: string
 };
 
 /**
- * PDF 형식으로 다운로드
+ * PDF 형식으로 다운로드 (HTML2Canvas를 사용한 한글 지원)
  */
-export const downloadAsPDF = (content: GeneratedContent, filename: string, contentType: ContentType) => {
+export const downloadAsPDF = async (content: GeneratedContent, filename: string, contentType: ContentType) => {
   try {
+    // 임시 HTML 엘리먼트 생성
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.width = '794px'; // A4 width in pixels at 96dpi
+    tempDiv.style.padding = '40px';
+    tempDiv.style.backgroundColor = 'white';
+    tempDiv.style.fontFamily = "'Pretendard', 'Noto Sans KR', sans-serif";
+    tempDiv.style.fontSize = '14px';
+    tempDiv.style.lineHeight = '1.8';
+    tempDiv.style.color = '#333';
+
     const markdown = content.markdown || convertContentToMarkdown(content.content, contentType);
-    const pdf = new jsPDF();
 
-    // 한글 폰트 문제로 인해 간단한 텍스트로 변환
-    const text = markdown
-      .replace(/^#+\s+(.+)$/gm, '$1\n') // 헤딩
-      .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
-      .replace(/\*(.+?)\*/g, '$1') // Italic
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // 링크
+    // Markdown을 HTML로 변환
+    const htmlContent = markdown
+      .split('\n')
+      .map(line => {
+        // 헤딩
+        if (line.startsWith('### ')) {
+          return `<h3 style="font-size: 16px; font-weight: bold; margin-top: 16px; margin-bottom: 8px;">${line.replace(/^### /, '')}</h3>`;
+        }
+        if (line.startsWith('## ')) {
+          return `<h2 style="font-size: 18px; font-weight: bold; margin-top: 20px; margin-bottom: 10px;">${line.replace(/^## /, '')}</h2>`;
+        }
+        if (line.startsWith('# ')) {
+          return `<h1 style="font-size: 22px; font-weight: bold; margin-top: 24px; margin-bottom: 12px;">${line.replace(/^# /, '')}</h1>`;
+        }
+        // 불렛 포인트
+        if (line.startsWith('- ')) {
+          return `<li style="margin-left: 20px; margin-bottom: 6px;">${line.replace(/^- /, '')}</li>`;
+        }
+        // 빈 줄
+        if (line.trim() === '') {
+          return '<br>';
+        }
+        // 일반 텍스트 (Bold, Italic 처리)
+        const processed = line
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
+        return `<p style="margin-bottom: 8px;">${processed}</p>`;
+      })
+      .join('');
 
-    // 텍스트를 PDF에 추가 (한글 지원을 위해 splitTextToSize 사용)
-    const lines = pdf.splitTextToSize(text, 180);
-    let y = 20;
+    tempDiv.innerHTML = htmlContent;
+    document.body.appendChild(tempDiv);
 
-    lines.forEach((line: string) => {
-      if (y > 280) {
+    // HTML2Canvas 동적 import
+    const html2canvas = (await import('html2canvas')).default;
+
+    try {
+      // HTML을 캔버스로 변환
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // jsPDF로 PDF 생성
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // 첫 페이지 추가
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // 추가 페이지가 필요한 경우
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
         pdf.addPage();
-        y = 20;
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
-      pdf.text(line, 15, y);
-      y += 7;
-    });
 
-    pdf.save(`${filename}.pdf`);
+      pdf.save(`${filename}.pdf`);
+    } finally {
+      // 임시 엘리먼트 제거
+      document.body.removeChild(tempDiv);
+    }
   } catch (error) {
     console.error('PDF 다운로드 실패:', error);
     throw new Error('PDF 파일 생성에 실패했습니다.');
@@ -173,26 +233,90 @@ export const downloadAllAsZip = async (
 };
 
 /**
- * 슬라이드를 PowerPoint 형식으로 변환 (간단한 텍스트 기반)
- * 실제 PPTX 생성은 서버 사이드에서 처리하는 것이 좋습니다
+ * 슬라이드를 PowerPoint 형식으로 다운로드
  */
-export const downloadSlidesAsPPTX = (content: any, filename: string) => {
-  // pptxgenjs 라이브러리를 사용한 PPTX 생성
-  // 여기서는 간단히 구현하지 않고, 서버 API를 호출하거나
-  // 별도 라이브러리를 설치하여 구현할 수 있습니다
-  console.warn('PPTX 다운로드는 추후 구현 예정입니다.');
+export const downloadSlidesAsPPTX = async (content: any, filename: string) => {
+  try {
+    // pptxgenjs 동적 import
+    const PptxGenJS = (await import('pptxgenjs')).default;
+    const pptx = new PptxGenJS();
 
-  // 임시로 Markdown으로 다운로드
-  const markdown = convertSlidesToMarkdown(content);
-  const dataBlob = new Blob([markdown], { type: 'text/markdown' });
-  const url = URL.createObjectURL(dataBlob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${filename}_slides.md`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+    // 프레젠테이션 메타데이터 설정
+    pptx.title = content.deckTitle || '프레젠테이션';
+    pptx.author = 'Course Builder';
+    pptx.subject = content.deckTitle || '교육 자료';
+
+    // 제목 슬라이드
+    const titleSlide = pptx.addSlide();
+    titleSlide.background = { color: 'F1F5F9' };
+    titleSlide.addText(content.deckTitle || '프레젠테이션', {
+      x: 0.5,
+      y: 2,
+      w: 9,
+      h: 1.5,
+      fontSize: 44,
+      bold: true,
+      color: '1e293b',
+      align: 'center'
+    });
+
+    // 콘텐츠 슬라이드들
+    if (content.slides && Array.isArray(content.slides)) {
+      content.slides.forEach((slide: any) => {
+        const contentSlide = pptx.addSlide();
+        contentSlide.background = { color: 'FFFFFF' };
+
+        // 슬라이드 제목
+        contentSlide.addText(slide.title || '', {
+          x: 0.5,
+          y: 0.5,
+          w: 9,
+          h: 0.8,
+          fontSize: 32,
+          bold: true,
+          color: '1e293b'
+        });
+
+        // 불렛 포인트
+        if (slide.bulletPoints && Array.isArray(slide.bulletPoints) && slide.bulletPoints.length > 0) {
+          const bulletText = slide.bulletPoints.map((point: string) => ({
+            text: point,
+            options: { bullet: true, fontSize: 18, color: '475569' }
+          }));
+
+          contentSlide.addText(bulletText, {
+            x: 0.5,
+            y: 1.5,
+            w: 9,
+            h: 4,
+            fontSize: 18,
+            color: '475569'
+          });
+        } else if (slide.content) {
+          // 일반 콘텐츠
+          contentSlide.addText(slide.content, {
+            x: 0.5,
+            y: 1.5,
+            w: 9,
+            h: 4,
+            fontSize: 18,
+            color: '475569'
+          });
+        }
+
+        // 발표자 노트
+        if (slide.speakerNotes) {
+          contentSlide.addNotes(slide.speakerNotes);
+        }
+      });
+    }
+
+    // PPT 파일 저장
+    await pptx.writeFile({ fileName: `${filename}.pptx` });
+  } catch (error) {
+    console.error('PPTX 다운로드 실패:', error);
+    throw new Error('PowerPoint 파일 생성에 실패했습니다.');
+  }
 };
 
 /**

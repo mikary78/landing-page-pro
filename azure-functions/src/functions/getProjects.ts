@@ -55,6 +55,7 @@ export async function getProjects(
           JOIN generation_artifacts ga ON gj.id = ga.job_id
           WHERE gj.project_id = p.id
             AND ga.artifact_type = 'cover'
+            AND ga.status = 'completed'
             AND ga.assets IS NOT NULL
             AND ga.assets->'background' IS NOT NULL
             AND ga.assets->'background'->>'dataUrl' IS NOT NULL

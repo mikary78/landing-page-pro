@@ -95,8 +95,7 @@ jobs:
     needs: build
     if: needs.build.outputs.environment == 'staging'
     runs-on: ubuntu-latest
-    environment:
-      name: staging
+    environment: staging
 
     steps:
       - name: Download build artifact
