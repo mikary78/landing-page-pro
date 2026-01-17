@@ -164,11 +164,11 @@ export const RevealSlidePreview = ({ content, lessonTitle }: RevealSlidePreviewP
           <section className={backgroundClass || ''} data-transition={slide.transition || 'slide'}>
             <h2>{title}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-              {content.columns && content.columns.map((col, idx) => (
+              {content?.columns?.map((col, idx) => (
                 <div key={idx}>
                   <h3>{col.title}</h3>
                   <ul>
-                    {col.content.map((item, i) => (
+                    {col.content?.map((item, i) => (
                       <li key={i}>{item}</li>
                     ))}
                   </ul>
@@ -347,10 +347,10 @@ function generateRevealHTML(slideData: RevealSlideData, lessonTitle: string): st
         slideContent = `
           <h2>${title}</h2>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-            ${content.columns ? content.columns.map(col => `
+            ${content?.columns ? content.columns.map(col => `
               <div>
-                <h3>${col.title}</h3>
-                <ul>${col.content.map(item => `<li>${item}</li>`).join('')}</ul>
+                <h3>${col?.title || ''}</h3>
+                <ul>${col?.content?.map(item => `<li>${item}</li>`).join('') || ''}</ul>
               </div>
             `).join('') : ''}
           </div>

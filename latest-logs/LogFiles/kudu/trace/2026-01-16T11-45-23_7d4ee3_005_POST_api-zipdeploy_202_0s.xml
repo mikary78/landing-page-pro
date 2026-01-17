@@ -1,0 +1,17 @@
+<step title="Incoming Request" date="2026-01-16T11:45:23.199" instance="7d4ee3" url="/api/zipdeploy?isAsync=true" method="POST" type="request" pid="833,1,16" Accept="*/*" Host="app-landing-page-pro.scm.azurewebsites.net" User-Agent="AZURECLI/2.80.0 (MSI)" Accept-Encoding="gzip, deflate" Authorization="Bea..." Cache-Control="no-cache" Content-Type="application/octet-stream" Content-Length="3897632" x-ms-client-request-id="d2a238d6-f2d0-11f0-9509-c4cb76967773" x-ms-artifact-checksum="758bef3636ed6f1f7d58f093ffecd69b873f1d8a893fc376be38f73c45e36808" X-ARR-LOG-ID="d2a238d6-f2d0-11f0-9509-c4cb76967773" CLIENT-IP="112.148.9.211:14757" X-SITE-DEPLOYMENT-ID="app-landing-page-pro" WAS-DEFAULT-HOSTNAME="app-landing-page-pro.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/zipdeploy?isAsync=true" X-Client-IP="112.148.9.211" X-Client-Port="14757" >
+  <step title="Cleanup Xml Logs" date="2026-01-16T11:45:23.201" >
+    <step title="Cleanup Infos" date="2026-01-16T11:45:23.246" totalFiles="232" totalCleanup="72" /><!-- duration: 18ms -->
+  </step><!-- duration: 90ms -->
+  <step title="ZipPushDeploy" date="2026-01-16T11:45:23.310" >
+    <step title="ZipDeploy. Extract zip." date="2026-01-16T11:45:23.323" /><!-- duration: 1ms -->
+    <step title="Starting PushDeployAsync" date="2026-01-16T11:45:23.328" /><!-- duration: 1ms -->
+    <step title="Writing artifact to /tmp/zipdeploy/07de1951-7db9-47b7-affb-ad26580d336b.zip" date="2026-01-16T11:45:23.334" >
+      <step title="Writing multipart request body to /tmp/zipdeploy/07de1951-7db9-47b7-affb-ad26580d336b.zip" date="2026-01-16T11:45:23.336" /><!-- duration: 2ms -->
+    </step><!-- duration: 93ms -->
+    <step title="Start deployment in the background" date="2026-01-16T11:45:23.432" >
+      <step title="Acquiring Deployment Lock" date="2026-01-16T11:45:23.450" /><!-- duration: 7ms -->
+      <step title="Acquired Deployment Lock" date="2026-01-16T11:45:23.479" /><!-- duration: 2ms -->
+    </step><!-- duration: 116ms -->
+  </step><!-- duration: 245ms -->
+  <step title="Outgoing response" date="2026-01-16T11:45:23.558" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 2ms -->
+</step><!-- duration: 362ms -->

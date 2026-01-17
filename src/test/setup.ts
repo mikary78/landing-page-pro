@@ -60,11 +60,6 @@ if (typeof process !== 'undefined' && process.on) {
   });
 }
 
-// 각 테스트 후 자동 cleanup
-afterEach(() => {
-  cleanup();
-});
-
 // Node.js 환경 변수 설정 (webidl-conversions 모듈을 위한)
 // jsdom 환경에서 Node.js 전역 변수 제공
 if (typeof globalThis !== 'undefined') {

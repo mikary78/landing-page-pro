@@ -1,0 +1,8 @@
+<step title="Incoming Request" date="2026-01-16T11:45:29.633" instance="7d4ee3" url="/api/deployments/latest" method="GET" type="request" pid="833,1,18" Accept="*/*" Host="app-landing-page-pro.scm.azurewebsites.net" User-Agent="AZURECLI/2.80.0 (MSI)" Accept-Encoding="gzip, deflate" Authorization="Bea..." x-ms-client-request-id="d2a238d6-f2d0-11f0-9509-c4cb76967773" X-ARR-LOG-ID="d2a238d6-f2d0-11f0-9509-c4cb76967773" CLIENT-IP="112.148.9.211:9530" X-SITE-DEPLOYMENT-ID="app-landing-page-pro" WAS-DEFAULT-HOSTNAME="app-landing-page-pro.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest" X-Client-IP="112.148.9.211" X-Client-Port="9530" >
+  <step title="DeploymentService.GetResult" date="2026-01-16T11:45:29.651" >
+    <step title="DeploymentService.GetLatestDeployment" date="2026-01-16T11:45:29.662" >
+      <step title="DeploymentManager.GetResults" date="2026-01-16T11:45:29.679" /><!-- duration: 1778ms -->
+    </step><!-- duration: 1823ms -->
+  </step><!-- duration: 1842ms -->
+  <step title="Outgoing response" date="2026-01-16T11:45:31.512" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 11ms -->
+</step><!-- duration: 1898ms -->
