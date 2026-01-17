@@ -44,6 +44,7 @@ import remarkGfm from "remark-gfm";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageBreak } from "docx";
 import { saveAs } from "file-saver";
 import { generatePptxBlob } from "@/lib/pptxExport";
+import { CurriculumCard } from "@/components/curriculum/CurriculumCard";
 
 interface Project {
   id: string;
@@ -412,12 +413,17 @@ export default function GenerationStudioPage() {
       );
     }
 
+    // 커리큘럼 결과 - 구조화된 JSON으로 렌더링
+    if (step.step_type === "curriculum_design" && step.output.curriculumJson) {
+      return <CurriculumCard curriculum={step.output.curriculumJson} />;
+    }
+
     // Markdown 콘텐츠 렌더링
     const contentKeys = ["curriculum", "lessonPlan", "labTemplate", "assessment", "finalReview"];
     for (const key of contentKeys) {
       if (step.output[key] && typeof step.output[key] === "string") {
         return (
-          <div className="prose prose-sm max-w-none dark:prose-invert 
+          <div className="prose prose-sm max-w-none dark:prose-invert
             prose-headings:text-foreground prose-p:text-foreground
             prose-table:w-full prose-table:border-collapse prose-table:border prose-table:border-slate-300
             prose-th:bg-slate-100 prose-th:dark:bg-slate-800 prose-th:p-2 prose-th:border prose-th:border-slate-300 prose-th:text-left prose-th:font-semibold
@@ -1580,8 +1586,28 @@ export default function GenerationStudioPage() {
                       setChatMessages((prev) => [...prev, { role: "user", content: msg, createdAt: new Date().toISOString() }]);
 
                       try {
-                        const targets = { document: true };
-                        const res = await generationChat({ projectId: id, message: msg, targets });
+                        // 동적으로 target 설정: 메시지 내용 또는 현재 탭 기준
+                        const msgLower = msg.toLowerCase();
+                        const hasDocumentKeyword = /(강의안|문서|document|교재)/i.test(msg);
+                        const hasInfographicKeyword = /(인포그래픽|infographic|다이어그램|diagram)/i.test(msg);
+                        const hasSlidesKeyword = /(슬라이드|교안|slides|deck|프레젠테이션|presentation)/i.test(msg);
+
+                        // 키워드가 명시되지 않은 경우 현재 보고 있는 탭 기준
+                        const targets = {
+                          document: hasDocumentKeyword || (!hasInfographicKeyword && !hasSlidesKeyword && previewTab === "document"),
+                          infographic: hasInfographicKeyword || (!hasDocumentKeyword && !hasSlidesKeyword && previewTab === "infographic"),
+                          slides: hasSlidesKeyword || (!hasDocumentKeyword && !hasInfographicKeyword && previewTab === "slides"),
+                        };
+
+                        // 아무 target도 선택되지 않은 경우 (질문이나 일반 대화)
+                        const hasAnyTarget = targets.document || targets.infographic || targets.slides;
+
+                        const res = await generationChat({
+                          projectId: id,
+                          message: msg,
+                          targets: hasAnyTarget ? targets : undefined,
+                          aiModel: selectedAiModel as 'gemini' | 'claude' | 'chatgpt'
+                        });
                         if (res.error) throw res.error;
                         const assistant = res.data?.assistantMessage || "요청을 접수했습니다.";
                         setChatMessages((prev) => [

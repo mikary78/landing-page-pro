@@ -78,13 +78,15 @@ export async function generationChat(
 
     const result = await transaction(async (client) => {
       // Ensure project ownership
-      const projectCheck = await client.query(`SELECT id FROM projects WHERE id = $1 AND user_id = $2`, [
+      const projectCheck = await client.query(`SELECT id, title, description, document_content FROM projects WHERE id = $1 AND user_id = $2`, [
         projectId,
         user.userId,
       ]);
       if (projectCheck.rows.length === 0) {
         return { ok: false as const, status: 404 as const, error: 'Project not found or access denied' };
       }
+
+      const project = projectCheck.rows[0];
 
       const jobRes = await client.query(
         `SELECT * FROM generation_jobs WHERE project_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
@@ -96,6 +98,66 @@ export async function generationChat(
       }
 
       const job = jobRes.rows[0];
+
+      // Handle question intent
+      if (intent === 'question') {
+        // Get artifacts for context
+        const artifactsRes = await client.query(
+          `SELECT artifact_type, assets, content, status FROM generation_artifacts WHERE job_id = $1`,
+          [job.id]
+        );
+
+        const artifacts = artifactsRes.rows;
+        let contextText = `프로젝트 제목: ${project.title}\n`;
+        if (project.description) contextText += `프로젝트 설명: ${project.description}\n\n`;
+
+        // Add artifact summaries
+        for (const artifact of artifacts) {
+          if (artifact.status === 'completed' || artifact.status === 'draft') {
+            contextText += `\n[${artifact.artifact_type}]\n`;
+            if (artifact.content) {
+              // Limit context size
+              const content = typeof artifact.content === 'string' ? artifact.content : JSON.stringify(artifact.content);
+              contextText += content.substring(0, 2000) + (content.length > 2000 ? '...' : '') + '\n';
+            }
+            if (artifact.assets) {
+              contextText += `에셋: ${JSON.stringify(artifact.assets).substring(0, 500)}\n`;
+            }
+          }
+        }
+
+        // Get recent steps for context
+        const stepsRes = await client.query(
+          `SELECT step_type, title, status, output FROM generation_steps WHERE job_id = $1 ORDER BY order_index DESC LIMIT 5`,
+          [job.id]
+        );
+
+        if (stepsRes.rows.length > 0) {
+          contextText += '\n최근 단계:\n';
+          for (const step of stepsRes.rows) {
+            contextText += `- ${step.title} (${step.status})\n`;
+          }
+        }
+
+        // Generate AI response
+        const systemPrompt = `당신은 교육 콘텐츠 생성 전문 어시스턴트입니다.
+사용자가 생성한 강의안, 슬라이드, 인포그래픽에 대해 질문하거나 설명을 요청하면 상세하고 친절하게 답변하세요.
+생성 이유, 근거, 구조, 개선 방향 등을 구체적으로 설명하세요.
+답변은 한국어로 작성하며, 마크다운 형식을 사용할 수 있습니다.`;
+
+        const aiResponse = await generateContent(
+          effectiveModel,
+          `사용자 질문: ${message}\n\n현재 프로젝트 컨텍스트:\n${contextText.substring(0, 8000)}`,
+          systemPrompt
+        );
+
+        return {
+          ok: true as const,
+          action: { type: 'answered' as const },
+          assistantMessage: aiResponse || '죄송합니다. 답변을 생성할 수 없습니다.',
+          enqueue: false,
+        };
+      }
 
       if (intent === 'cancel') {
         await client.query(
