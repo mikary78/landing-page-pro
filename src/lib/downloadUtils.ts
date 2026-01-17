@@ -2,10 +2,14 @@
  * downloadUtils.ts
  *
  * 코스 빌더 콘텐츠 다운로드 유틸리티 함수
- * JSON, Markdown, PPTX 등 다양한 형식으로 내보내기 지원
+ * JSON, Markdown, Word, PDF, PPTX 등 다양한 형식으로 내보내기 지원
  */
 
-type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+
+type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes' | 'infographic';
 
 interface GeneratedContent {
   contentType: string;
@@ -67,6 +71,64 @@ export const downloadAsText = (content: GeneratedContent, filename: string, cont
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+};
+
+/**
+ * Word (.docx) 형식으로 다운로드
+ */
+export const downloadAsWord = async (content: GeneratedContent, filename: string, contentType: ContentType) => {
+  try {
+    const markdown = content.markdown || convertContentToMarkdown(content.content, contentType);
+    const paragraphs = markdownToWordParagraphs(markdown);
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: paragraphs,
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `${filename}.docx`);
+  } catch (error) {
+    console.error('Word 다운로드 실패:', error);
+    throw new Error('Word 파일 생성에 실패했습니다.');
+  }
+};
+
+/**
+ * PDF 형식으로 다운로드
+ */
+export const downloadAsPDF = (content: GeneratedContent, filename: string, contentType: ContentType) => {
+  try {
+    const markdown = content.markdown || convertContentToMarkdown(content.content, contentType);
+    const pdf = new jsPDF();
+
+    // 한글 폰트 문제로 인해 간단한 텍스트로 변환
+    const text = markdown
+      .replace(/^#+\s+(.+)$/gm, '$1\n') // 헤딩
+      .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
+      .replace(/\*(.+?)\*/g, '$1') // Italic
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // 링크
+
+    // 텍스트를 PDF에 추가 (한글 지원을 위해 splitTextToSize 사용)
+    const lines = pdf.splitTextToSize(text, 180);
+    let y = 20;
+
+    lines.forEach((line: string) => {
+      if (y > 280) {
+        pdf.addPage();
+        y = 20;
+      }
+      pdf.text(line, 15, y);
+      y += 7;
+    });
+
+    pdf.save(`${filename}.pdf`);
+  } catch (error) {
+    console.error('PDF 다운로드 실패:', error);
+    throw new Error('PDF 파일 생성에 실패했습니다.');
+  }
 };
 
 /**
@@ -366,6 +428,68 @@ function getContentTypeLabel(contentType: ContentType): string {
     supplementary_materials: '보충자료',
     discussion_prompts: '토론주제',
     instructor_notes: '강사노트',
+    infographic: '인포그래픽',
   };
   return labels[contentType] || contentType;
+}
+
+/**
+ * Markdown을 Word Paragraphs로 변환
+ */
+function markdownToWordParagraphs(markdown: string): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+  const lines = markdown.split('\n');
+
+  for (const line of lines) {
+    if (line.trim() === '') {
+      paragraphs.push(new Paragraph({ text: '' }));
+      continue;
+    }
+
+    // 헤딩 처리
+    if (line.startsWith('# ')) {
+      paragraphs.push(new Paragraph({
+        text: line.replace(/^#\s+/, ''),
+        heading: HeadingLevel.HEADING_1,
+      }));
+    } else if (line.startsWith('## ')) {
+      paragraphs.push(new Paragraph({
+        text: line.replace(/^##\s+/, ''),
+        heading: HeadingLevel.HEADING_2,
+      }));
+    } else if (line.startsWith('### ')) {
+      paragraphs.push(new Paragraph({
+        text: line.replace(/^###\s+/, ''),
+        heading: HeadingLevel.HEADING_3,
+      }));
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      // 불렛 포인트
+      paragraphs.push(new Paragraph({
+        text: line.replace(/^[-*]\s+/, ''),
+        bullet: { level: 0 },
+      }));
+    } else {
+      // 일반 텍스트 (Bold, Italic 처리)
+      const textRuns: TextRun[] = [];
+      const boldRegex = /\*\*(.+?)\*\*/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = boldRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          textRuns.push(new TextRun({ text: line.substring(lastIndex, match.index) }));
+        }
+        textRuns.push(new TextRun({ text: match[1], bold: true }));
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < line.length) {
+        textRuns.push(new TextRun({ text: line.substring(lastIndex) }));
+      }
+
+      paragraphs.push(new Paragraph({ children: textRuns.length > 0 ? textRuns : [new TextRun({ text: line })] }));
+    }
+  }
+
+  return paragraphs;
 }

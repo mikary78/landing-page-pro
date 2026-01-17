@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Sparkles, Bot, Presentation, CheckSquare, ClipboardList,
-  FileText, BookOpen, RefreshCw, Wand2, MessageCircle, Lightbulb, Download, FileDown
+  FileText, BookOpen, RefreshCw, Wand2, MessageCircle, Lightbulb, Download, FileDown, Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -28,7 +28,7 @@ import { VersionHistorySheet } from "./VersionHistorySheet";
 import { AIModelComparison } from "./AIModelComparison";
 import { SlidePreview } from "./SlidePreview";
 import { SupplementaryMaterialsPreview } from "./SupplementaryMaterialsPreview";
-import { downloadAsJSON, downloadAsMarkdown, downloadAsText, downloadAllAsZip } from "@/lib/downloadUtils";
+import { downloadAsJSON, downloadAsMarkdown, downloadAsText, downloadAsWord, downloadAsPDF, downloadAllAsZip } from "@/lib/downloadUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,6 +217,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
         supplementary_materials: null,
         discussion_prompts: null,
         instructor_notes: null,
+        infographic: null,
       });
       return;
     }
@@ -229,6 +230,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       supplementary_materials: null,
       discussion_prompts: null,
       instructor_notes: null,
+      infographic: null,
     };
 
     // 선택된 AI 모델에 맞는 콘텐츠만 필터링
@@ -433,7 +435,18 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     // JSON 콘텐츠 렌더링
     const data = content.content;
 
-    if (contentType === 'slides' && data.slides) {
+    if (contentType === 'slides') {
+      if (!data || !data.slides || data.slides.length === 0) {
+        return (
+          <div className="min-h-[300px] flex items-center justify-center text-center p-8 bg-slate-50 rounded-lg">
+            <div>
+              <Presentation className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">슬라이드 데이터가 없습니다</h3>
+              <p className="text-sm text-muted-foreground">슬라이드를 다시 생성해보세요.</p>
+            </div>
+          </div>
+        );
+      }
       return (
         <SlidePreview
           content={data}
@@ -443,11 +456,22 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     }
 
     if (contentType === 'infographic') {
+      if (!data || (!data.sections && !data.diagram)) {
+        return (
+          <div className="min-h-[300px] flex items-center justify-center text-center p-8 bg-slate-50 rounded-lg">
+            <div>
+              <Sparkles className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">인포그래픽 데이터가 없습니다</h3>
+              <p className="text-sm text-muted-foreground">인포그래픽을 다시 생성해보세요.</p>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="space-y-6 bg-gradient-to-br from-blue-50 to-purple-50 p-8 rounded-2xl">
           <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold mb-2">{data.title || lessonTitle}</h3>
-            {data.description && (
+            <h3 className="text-2xl font-bold mb-2">{data?.title || lessonTitle}</h3>
+            {data?.description && (
               <p className="text-muted-foreground">{data.description}</p>
             )}
           </div>
@@ -861,8 +885,14 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={Object.keys(generatedContents).find(k => generatedContents[k as ContentType] !== null) || 'slides'}>
+            <Tabs defaultValue="all">
               <TabsList className="mb-4">
+                {/* 전체 보기 탭 */}
+                <TabsTrigger value="all" className="flex items-center gap-1">
+                  <Eye className="h-4 w-4" />
+                  전체 보기
+                </TabsTrigger>
+                {/* 개별 콘텐츠 탭들 */}
                 {CONTENT_TYPES.filter(({ type }) => generatedContents[type] !== null).map(({ type, label, icon: Icon }) => (
                   <TabsTrigger key={type} value={type} className="flex items-center gap-1">
                     <Icon className="h-4 w-4" />
@@ -870,6 +900,28 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                   </TabsTrigger>
                 ))}
               </TabsList>
+
+              {/* 전체 보기 탭 콘텐츠 */}
+              <TabsContent value="all">
+                <div className="space-y-8">
+                  {CONTENT_TYPES.filter(({ type }) => generatedContents[type] !== null).map(({ type, label, icon: Icon }) => {
+                    const content = generatedContents[type];
+                    if (!content) return null;
+
+                    return (
+                      <div key={type} className="border-b pb-8 last:border-b-0 last:pb-0">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Icon className="h-5 w-5 text-primary" />
+                          <h3 className="text-lg font-bold">{label}</h3>
+                        </div>
+                        <div className={`${type === 'slides' ? '' : 'border rounded-lg p-4 max-h-[500px] overflow-auto'}`}>
+                          {renderContentPreview(type, content, lesson.title)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </TabsContent>
               
               {CONTENT_TYPES.map(({ type, label }) => {
                 const content = generatedContents[type];
@@ -915,6 +967,32 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
                             >
                               <FileText className="h-4 w-4 mr-2" />
                               텍스트 형식
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                try {
+                                  await downloadAsWord(content, `${lesson.title}_${label}`, type);
+                                  toast.success("Word 파일이 다운로드되었습니다.");
+                                } catch (error) {
+                                  toast.error("Word 파일 다운로드에 실패했습니다.");
+                                }
+                              }}
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Word 형식 (.docx)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                try {
+                                  downloadAsPDF(content, `${lesson.title}_${label}`, type);
+                                  toast.success("PDF 파일이 다운로드되었습니다.");
+                                } catch (error) {
+                                  toast.error("PDF 파일 다운로드에 실패했습니다.");
+                                }
+                              }}
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              PDF 형식
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

@@ -59,10 +59,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Clean install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Run linter
         run: npm run lint
@@ -131,7 +132,9 @@ jobs:
           path: ./
 
       - name: Install production dependencies
-        run: npm ci --only=production
+        run: |
+          rm -rf node_modules
+          npm install --only=production
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -163,7 +166,9 @@ jobs:
           path: ./
 
       - name: Install production dependencies
-        run: npm ci --only=production
+        run: |
+          rm -rf node_modules
+          npm install --only=production
 
       - name: Login to Azure
         uses: azure/login@v2
