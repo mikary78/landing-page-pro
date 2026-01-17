@@ -384,6 +384,39 @@ CREATE INDEX IF NOT EXISTS idx_lessons_module_id ON lessons(module_id);
 CREATE INDEX IF NOT EXISTS idx_lessons_project_id ON lessons(project_id);
 CREATE INDEX IF NOT EXISTS idx_lessons_order_index ON lessons(module_id, order_index);
 
+-- 3.4 lesson_contents (레슨별 생성된 콘텐츠)
+-- 여러 AI 모델로 생성된 다양한 콘텐츠 버전을 저장
+CREATE TABLE IF NOT EXISTS lesson_contents (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  lesson_id UUID NOT NULL,
+  content_type VARCHAR(100) NOT NULL, -- 'slides', 'assessment', 'hands_on_activity' 등
+  ai_model VARCHAR(50) NOT NULL, -- 'gemini', 'claude', 'chatgpt'
+  content JSONB NOT NULL, -- 실제 콘텐츠 데이터
+  markdown TEXT, -- Markdown 형식 콘텐츠 (있는 경우)
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$ BEGIN
+  ALTER TABLE lesson_contents ADD CONSTRAINT fk_lesson_contents_lesson_id
+    FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_lesson_contents_lesson_id ON lesson_contents(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_contents_type_model ON lesson_contents(lesson_id, content_type, ai_model);
+CREATE INDEX IF NOT EXISTS idx_lesson_contents_created_at ON lesson_contents(created_at DESC);
+
+-- Unique constraint for UPSERT
+DO $$ BEGIN
+  ALTER TABLE lesson_contents ADD CONSTRAINT uq_lesson_contents_lesson_type_model
+    UNIQUE (lesson_id, content_type, ai_model);
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
 -- ========================================================
 -- 4. FUNCTIONS & TRIGGERS
 -- ========================================================
