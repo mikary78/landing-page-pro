@@ -58,46 +58,30 @@ export async function generateImageDataUrl(prompt: string): Promise<GeneratedIma
     return null;
   }
 
-  // NOTE: OpenAI SDK version in this repo is v4.x; images API shape can vary by model.
-  // We try gpt-image-1 (base64) first, fallback to dall-e-3 if needed.
+  // Use DALL-E 3 directly (gpt-image-1 doesn't exist)
   try {
     const res: any = await (openai as any).images.generate({
-      model: 'gpt-image-1',
+      model: 'dall-e-3',
       prompt,
       size: '1024x1024',
-      // request base64 output (SDK will expose b64_json when supported)
       response_format: 'b64_json',
     });
 
     const b64 = res?.data?.[0]?.b64_json;
-    if (!b64) throw new Error('No b64_json in image response');
+    if (!b64) {
+      console.error('[image-generation] No b64_json in DALL-E response');
+      return null;
+    }
+
     return {
       prompt,
       dataUrl: `data:image/png;base64,${b64}`,
       createdAt: new Date().toISOString(),
-      model: 'gpt-image-1',
+      model: 'dall-e-3',
     };
-  } catch (e) {
-    // Fallback to DALL-E 3
-    try {
-      const res: any = await (openai as any).images.generate({
-        model: 'dall-e-3',
-        prompt,
-        size: '1024x1024',
-        response_format: 'b64_json',
-      });
-      const b64 = res?.data?.[0]?.b64_json;
-      if (!b64) return null;
-      return {
-        prompt,
-        dataUrl: `data:image/png;base64,${b64}`,
-        createdAt: new Date().toISOString(),
-        model: 'dall-e-3',
-      };
-    } catch (fallbackError) {
-      console.error('[image-generation] 이미지 생성 실패:', fallbackError);
-      return null;
-    }
+  } catch (error) {
+    console.error('[image-generation] DALL-E 3 이미지 생성 실패:', error);
+    return null;
   }
 }
 
