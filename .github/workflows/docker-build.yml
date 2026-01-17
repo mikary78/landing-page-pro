@@ -99,8 +99,7 @@ jobs:
             VITE_ENTRA_CLIENT_ID=${{ needs.setup.outputs.environment == 'production' && secrets.ENTRA_CLIENT_ID_PROD || secrets.ENTRA_CLIENT_ID_STAGING }}
             VITE_ENTRA_TENANT_ID=${{ secrets.ENTRA_TENANT_ID }}
             VITE_ENTRA_AUTHORITY=${{ secrets.ENTRA_AUTHORITY }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
 
   # Azure Functions 이미지 빌드
   build-functions:
@@ -143,8 +142,7 @@ jobs:
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:${{ needs.setup.outputs.tag }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:${{ needs.setup.outputs.environment }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.FUNCTIONS_IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
 
   # 배포 알림
   notify:

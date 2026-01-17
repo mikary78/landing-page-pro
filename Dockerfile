@@ -8,7 +8,7 @@
 # ============================================
 
 # ---- Stage 1: Build ----
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
@@ -17,7 +17,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 의존성 설치
-RUN npm ci --legacy-peer-deps
+RUN rm -f package-lock.json && npm install
 
 # 소스 코드 복사
 COPY . .
