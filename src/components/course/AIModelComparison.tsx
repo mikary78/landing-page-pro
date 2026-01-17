@@ -17,8 +17,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadAsJSON, downloadAsMarkdown } from "@/lib/downloadUtils";
-
-type ContentType = 'lesson_plan' | 'slides' | 'hands_on_activity' | 'assessment' | 'supplementary_materials' | 'discussion_prompts' | 'instructor_notes';
+import { ContentType } from "@/types/content";
 
 interface GeneratedContent {
   contentType: string;

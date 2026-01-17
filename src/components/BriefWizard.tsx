@@ -398,7 +398,7 @@ const BriefWizard = ({ onComplete, onCancel, initialData }: BriefWizardProps) =>
           <div className="space-y-4">
             {/* 파일 업로드 섹션 */}
             <div className="space-y-2">
-              <Label>문서 파일 업로드</Label>
+              <Label htmlFor="file-upload">문서 파일 업로드</Label>
               <div className="flex items-center gap-2">
                 <input
                   ref={fileInputRef}

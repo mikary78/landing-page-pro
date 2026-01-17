@@ -315,15 +315,22 @@ const Dashboard = () => {
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {projects.map((project) => (
                     <Card key={project.id} className="hover:shadow-lg transition-shadow overflow-hidden">
-                      {project.cover_image_url && (
-                        <div className="w-full h-40 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
+                      <div className="w-full h-40 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden relative">
+                        {project.cover_image_url ? (
                           <img
                             src={project.cover_image_url}
                             alt={`${project.title} 커버`}
                             className="w-full h-full object-cover"
                           />
-                        </div>
-                      )}
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <BookOpen className="h-12 w-12 text-blue-400/50 mx-auto mb-2" />
+                              <p className="text-sm text-muted-foreground">프로젝트 커버</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">

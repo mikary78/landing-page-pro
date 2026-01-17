@@ -753,7 +753,7 @@ JSON 스키마 예시:
 
     // 프로젝트 커버 이미지는 독립적인 artifact로 저장 (슬라이드/인포그래픽 배경으로 사용하지 않음)
     const artifacts: any[] = [
-      { type: 'cover', assets: { background: bg }, markCompleted: false }, // 프로젝트 커버 전용
+      { type: 'cover', assets: { background: bg }, markCompleted: true }, // 프로젝트 커버 전용 - markCompleted를 true로 설정
     ];
 
     // illustrations가 있으면 slides artifact에 추가 (background 제외)
