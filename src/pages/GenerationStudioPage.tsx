@@ -44,6 +44,7 @@ import remarkGfm from "remark-gfm";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, PageBreak } from "docx";
 import { saveAs } from "file-saver";
 import { generatePptxBlob } from "@/lib/pptxExport";
+import { CurriculumCard } from "@/components/curriculum/CurriculumCard";
 
 interface Project {
   id: string;
@@ -412,12 +413,17 @@ export default function GenerationStudioPage() {
       );
     }
 
+    // 커리큘럼 결과 - 구조화된 JSON으로 렌더링
+    if (step.step_type === "curriculum_design" && step.output.curriculumJson) {
+      return <CurriculumCard curriculum={step.output.curriculumJson} />;
+    }
+
     // Markdown 콘텐츠 렌더링
     const contentKeys = ["curriculum", "lessonPlan", "labTemplate", "assessment", "finalReview"];
     for (const key of contentKeys) {
       if (step.output[key] && typeof step.output[key] === "string") {
         return (
-          <div className="prose prose-sm max-w-none dark:prose-invert 
+          <div className="prose prose-sm max-w-none dark:prose-invert
             prose-headings:text-foreground prose-p:text-foreground
             prose-table:w-full prose-table:border-collapse prose-table:border prose-table:border-slate-300
             prose-th:bg-slate-100 prose-th:dark:bg-slate-800 prose-th:p-2 prose-th:border prose-th:border-slate-300 prose-th:text-left prose-th:font-semibold
