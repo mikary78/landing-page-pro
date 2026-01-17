@@ -673,7 +673,14 @@ JSON 스키마 예시:
 
     // 1. 배경 이미지 생성
     const backgroundPrompt = `Create a clean modern abstract background for an educational infographic and slide deck.\nTopic: ${title}\nPalette: ${paletteText}\nStyle: minimal, professional, lots of whitespace, subtle shapes.\nNo text.`;
+    context.log(`[design_assets] 배경 이미지 생성 시작`);
+    context.log(`[design_assets] Title: ${title}`);
+    context.log(`[design_assets] Palette: ${paletteText}`);
+    context.log(`[design_assets] Prompt length: ${backgroundPrompt.length} characters`);
+
     const bg = await generateImageDataUrl(backgroundPrompt);
+
+    context.log(`[design_assets] 배경 이미지 생성 결과: ${bg ? '성공' : '실패'}`);
     if (!bg) {
       const hasVertexKey = !!(process.env.VERTEX_API_KEY || process.env.VERTEXX_API_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS);
       const hasOpenAIKey = !!process.env.OPENAI_API_KEY;

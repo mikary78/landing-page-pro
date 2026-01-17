@@ -60,12 +60,18 @@ export async function generateImageDataUrl(prompt: string): Promise<GeneratedIma
 
   // Use DALL-E 3 directly (gpt-image-1 doesn't exist)
   try {
+    console.log('[image-generation] DALL-E 3 호출 시작');
+    console.log('[image-generation] Prompt:', prompt);
+    console.log('[image-generation] API Key exists:', !!process.env.OPENAI_API_KEY);
+
     const res: any = await (openai as any).images.generate({
       model: 'dall-e-3',
       prompt,
       size: '1024x1024',
       response_format: 'b64_json',
     });
+
+    console.log('[image-generation] DALL-E 3 응답 수신');
 
     const b64 = res?.data?.[0]?.b64_json;
     if (!b64) {
@@ -81,6 +87,15 @@ export async function generateImageDataUrl(prompt: string): Promise<GeneratedIma
     };
   } catch (error) {
     console.error('[image-generation] DALL-E 3 이미지 생성 실패:', error);
+    if (error instanceof Error) {
+      console.error('[image-generation] Error name:', error.name);
+      console.error('[image-generation] Error message:', error.message);
+      console.error('[image-generation] Error stack:', error.stack);
+    }
+    // OpenAI API 오류 객체 구조 로깅
+    if (typeof error === 'object' && error !== null) {
+      console.error('[image-generation] Error object:', JSON.stringify(error, null, 2));
+    }
     return null;
   }
 }
