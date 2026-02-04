@@ -96,7 +96,7 @@ export async function startGenerationJob(
 
     const effectiveOptions: GenerationOptions = {
       enableWebSearch: !!options?.enableWebSearch,
-      enableImageGeneration: !!options?.enableImageGeneration,
+      enableImageGeneration: options?.enableImageGeneration !== false,
       ...(slidesOpt ? { slides: slidesOpt } : {}),
     };
 

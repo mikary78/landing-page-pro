@@ -28,6 +28,8 @@ import { VersionHistorySheet } from "./VersionHistorySheet";
 import { AIModelComparison } from "./AIModelComparison";
 import { SlidePreview } from "./SlidePreview";
 import { SupplementaryMaterialsPreview } from "./SupplementaryMaterialsPreview";
+import { StyledDocumentViewer } from "@/components/studio/StyledDocumentViewer";
+import { InfographicCardView } from "@/components/studio/InfographicCardView";
 import { downloadAsJSON, downloadAsMarkdown, downloadAsText, downloadAsWord, downloadAsPDF, downloadAllAsZip } from "@/lib/downloadUtils";
 import {
   DropdownMenu,
@@ -422,20 +424,23 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
 
   const renderContentPreview = (contentType: ContentType, content: GeneratedContent, lessonTitle: string) => {
     if (content.markdown) {
-      return (
-        <div className="prose prose-sm max-w-none dark:prose-invert">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content.markdown}
-          </ReactMarkdown>
-        </div>
-      );
+      return <StyledDocumentViewer content={content.markdown} />;
     }
 
     // JSON 콘텐츠 렌더링
     const data = content.content;
 
     if (contentType === 'slides') {
-      if (!data || !data.slides || data.slides.length === 0) {
+      // Normalize slide data - handle various formats
+      let slideContent = data;
+      if (typeof data === 'string') {
+        try { slideContent = JSON.parse(data); } catch { slideContent = null; }
+      }
+      if (slideContent && !slideContent.slides && slideContent.deck) {
+        slideContent = slideContent.deck;
+      }
+
+      if (!slideContent || !slideContent.slides || slideContent.slides.length === 0) {
         return (
           <div className="min-h-[300px] flex items-center justify-center text-center p-8 bg-slate-50 rounded-lg">
             <div>
@@ -448,7 +453,7 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
       }
       return (
         <SlidePreview
-          content={data}
+          content={slideContent}
           lessonTitle={lessonTitle}
         />
       );
@@ -467,49 +472,10 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
         );
       }
       return (
-        <div className="space-y-6 bg-gradient-to-br from-blue-50 to-purple-50 p-8 rounded-2xl">
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold mb-2">{data?.title || lessonTitle}</h3>
-            {data?.description && (
-              <p className="text-muted-foreground">{data.description}</p>
-            )}
-          </div>
-
-          {/* 주요 섹션들 */}
-          {data.sections && Array.isArray(data.sections) && data.sections.map((section: any, idx: number) => (
-            <div key={idx} className="bg-white p-6 rounded-xl shadow-sm">
-              <h4 className="text-lg font-bold mb-3 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-blue-500" />
-                {section.title}
-              </h4>
-              {section.items && Array.isArray(section.items) && (
-                <ul className="space-y-2">
-                  {section.items.map((item: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <CheckSquare className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {section.content && (
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {section.content}
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* 다이어그램/플로우차트 */}
-          {data.diagram && (
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h4 className="text-lg font-bold mb-3">프로세스 다이어그램</h4>
-              <div className="text-sm whitespace-pre-wrap font-mono bg-slate-50 p-4 rounded-lg">
-                {data.diagram}
-              </div>
-            </div>
-          )}
-        </div>
+        <InfographicCardView
+          data={{ ...data, title: data?.title || lessonTitle }}
+          enableDownload={true}
+        />
       );
     }
 

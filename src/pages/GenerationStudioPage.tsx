@@ -35,6 +35,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InfographicCanvas } from "@/components/studio/InfographicCanvas";
+import { InfographicCardView } from "@/components/studio/InfographicCardView";
+import { StyledDocumentViewer } from "@/components/studio/StyledDocumentViewer";
 import { SlidesCanvas } from "@/components/studio/SlidesCanvas";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -423,13 +425,7 @@ export default function GenerationStudioPage() {
     for (const key of contentKeys) {
       if (step.output[key] && typeof step.output[key] === "string") {
         return (
-          <div className="prose prose-sm max-w-none dark:prose-invert
-            prose-headings:text-foreground prose-p:text-foreground
-            prose-table:w-full prose-table:border-collapse prose-table:border prose-table:border-slate-300
-            prose-th:bg-slate-100 prose-th:dark:bg-slate-800 prose-th:p-2 prose-th:border prose-th:border-slate-300 prose-th:text-left prose-th:font-semibold
-            prose-td:p-2 prose-td:border prose-td:border-slate-300">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{step.output[key]}</ReactMarkdown>
-          </div>
+          <StyledDocumentViewer content={step.output[key]} />
         );
       }
     }
@@ -1698,22 +1694,7 @@ export default function GenerationStudioPage() {
                   <ScrollArea className="h-[calc(100vh-380px)]">
                     <div className="rounded-xl border bg-white dark:bg-slate-900 shadow-sm p-6 min-h-[400px]">
                       {combinedDocument ? (
-                        <article className="prose prose-sm max-w-none dark:prose-invert 
-                          prose-headings:text-foreground prose-headings:font-bold
-                          prose-h1:text-2xl prose-h1:border-b prose-h1:pb-2 prose-h1:mb-4
-                          prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:text-primary
-                          prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3
-                          prose-p:text-foreground prose-p:leading-relaxed
-                          prose-li:text-foreground
-                          prose-table:w-full prose-table:border-collapse prose-table:border prose-table:border-slate-300 prose-table:my-4
-                          prose-thead:bg-slate-100 prose-thead:dark:bg-slate-800
-                          prose-th:p-3 prose-th:border prose-th:border-slate-300 prose-th:text-left prose-th:font-semibold
-                          prose-td:p-3 prose-td:border prose-td:border-slate-300
-                          prose-tr:hover:bg-slate-50 prose-tr:dark:hover:bg-slate-900
-                          prose-strong:text-foreground
-                          prose-ul:my-4 prose-ol:my-4">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{combinedDocument}</ReactMarkdown>
-                        </article>
+                        <StyledDocumentViewer content={combinedDocument} />
                       ) : (
                         <div className="text-center py-12 text-muted-foreground">
                           <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1729,7 +1710,7 @@ export default function GenerationStudioPage() {
                 <TabsContent value="infographic" className="mt-4">
                   <ScrollArea className="h-[calc(100vh-380px)]">
                     <div className="rounded-xl border bg-white dark:bg-slate-900 shadow-sm p-6 min-h-[400px]">
-                      <InfographicCanvas
+                      <InfographicCardView
                         data={artifactsByType.get("infographic")?.content_json}
                         assets={artifactsByType.get("infographic")?.assets}
                       />

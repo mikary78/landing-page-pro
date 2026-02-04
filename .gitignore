@@ -2,6 +2,7 @@
 1.txt
 11.txt
 12.txt
+
 # Logs
 logs
 *.log
@@ -16,13 +17,18 @@ dist
 dist-ssr
 *.local
 
+# Build artifacts & deployment archives
+*.zip
+*.tar.gz
+deploy-ready/
+node_modules_production/
+azure-functions/dist/
+azure-functions/deploy.zip
+
 # Environment variables (CRITICAL: Never commit!)
 .env
 .env.*
 !.env.example
-supabase/functions/.env
-supabase/functions/.env.*
-!supabase/functions/.env.example
 
 # Azure Functions local settings (CRITICAL: Contains API keys!)
 azure-functions/local.settings.json

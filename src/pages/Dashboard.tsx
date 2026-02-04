@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Header from "@/components/Header";
 import { DashboardStats } from "@/components/DashboardStats";
-import { Plus, Loader2, Trash2, FileText, Zap, Brain, BookOpen } from "lucide-react";
+import { Plus, Loader2, Trash2, FileText, Zap, Brain, BookOpen, Sparkles, Clock } from "lucide-react";
 import { toast } from "sonner";
 // import { Tables } from "@/integrations/supabase/types";
 
@@ -312,78 +312,115 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {projects.map((project) => (
-                    <Card key={project.id} className="hover:shadow-lg transition-shadow overflow-hidden">
-                      <div className="w-full h-40 bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden relative">
-                        {project.cover_image_url ? (
-                          <img
-                            src={project.cover_image_url}
-                            alt={`${project.title} 커버`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="text-center">
-                              <BookOpen className="h-12 w-12 text-blue-400/50 mx-auto mb-2" />
-                              <p className="text-sm text-muted-foreground">프로젝트 커버</p>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {projects.map((project) => {
+                    // 프로젝트별 고유 그라디언트 생성
+                    const gradients = [
+                      "from-blue-500/80 to-indigo-600/80",
+                      "from-purple-500/80 to-pink-600/80",
+                      "from-emerald-500/80 to-teal-600/80",
+                      "from-orange-500/80 to-red-600/80",
+                      "from-cyan-500/80 to-blue-600/80",
+                      "from-violet-500/80 to-purple-600/80",
+                    ];
+                    const gradientIdx = project.title.length % gradients.length;
+                    const gradient = gradients[gradientIdx];
+
+                    // AI 모델 이모지
+                    const modelEmoji = project.ai_model === 'gemini' ? '✨' : project.ai_model === 'claude' ? '🤖' : '💬';
+
+                    return (
+                      <Card
+                        key={project.id}
+                        className="group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer border-border/50"
+                        onClick={() => navigate(`/project/${project.id}/studio`)}
+                      >
+                        {/* Cover Image / Gradient Banner */}
+                        <div className="w-full h-44 overflow-hidden relative">
+                          {project.cover_image_url ? (
+                            <img
+                              src={project.cover_image_url}
+                              alt={`${project.title} 커버`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                              <div className="text-center text-white/90">
+                                <span className="text-5xl block mb-2">{modelEmoji}</span>
+                                <p className="text-sm font-medium opacity-80">{project.ai_model}</p>
+                              </div>
+                            </div>
+                          )}
+                          {/* Status badge overlay */}
+                          <div className="absolute top-3 right-3">
+                            {getStatusBadge(project.status)}
+                          </div>
+                        </div>
+
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">
+                            {project.title}
+                          </CardTitle>
+                          <CardDescription className="line-clamp-2 mt-1">
+                            {project.description || "설명이 없습니다"}
+                          </CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="pt-0">
+                          {/* Tags */}
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            <Badge variant="outline" className="text-xs">{project.ai_model}</Badge>
+                            {project.education_course && (
+                              <Badge variant="secondary" className="text-xs">{project.education_course}</Badge>
+                            )}
+                            {project.is_converted_to_course && (
+                              <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/20 text-xs">
+                                <BookOpen className="h-3 w-3 mr-1" />
+                                코스
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Footer */}
+                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {new Date(project.created_at).toLocaleDateString("ko-KR")}
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProjectToDelete(project.id);
+                                }}
+                                disabled={deletingProjectId === project.id}
+                              >
+                                {deletingProjectId === project.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/project/${project.id}/studio`);
+                                }}
+                              >
+                                스튜디오
+                              </Button>
                             </div>
                           </div>
-                        )}
-                      </div>
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="line-clamp-1">{project.title}</CardTitle>
-                            <CardDescription className="line-clamp-2 mt-2">
-                              {project.description || "설명이 없습니다"}
-                            </CardDescription>
-                          </div>
-                          {getStatusBadge(project.status)}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-4">
-                          <Badge variant="outline">{project.ai_model}</Badge>
-                          {project.education_course && (
-                            <Badge variant="secondary">{project.education_course}</Badge>
-                          )}
-                          {project.is_converted_to_course && (
-                            <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/20">
-                              <BookOpen className="h-3 w-3 mr-1" />
-                              코스로 변환됨
-                            </Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(project.created_at).toLocaleDateString("ko-KR")}
-                          </span>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setProjectToDelete(project.id)}
-                              disabled={deletingProjectId === project.id}
-                            >
-                              {deletingProjectId === project.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => navigate(`/project/${project.id}/studio`)}
-                            >
-                              보기
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>

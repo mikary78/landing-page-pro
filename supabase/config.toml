@@ -1,4 +1,0 @@
-project_id = "afbpwfhfyjkadefclfia"
-
-[functions.process-document]
-verify_jwt = false
