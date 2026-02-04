@@ -96,13 +96,51 @@
 - VERTEX_API_KEY, VERTEX_PROJECT_ID, VERTEX_LOCATION: Azure Function App 설정에 등록 확인
 - Node.js 런타임: v20 (Azure Functions)
 
+### 7. 종합강의안 기반 인포그래픽 (DocumentInfographic) (신규) — 2차 배포
+
+#### `src/components/studio/DocumentInfographic.tsx` (신규 파일)
+- 종합강의안(combinedDocument) 마크다운을 파싱하여 섹션별 인포그래픽 카드로 시각화
+- 마크다운 헤더(#, ##, ###) 기준 섹션 분리, 불릿/번호 목록 및 본문 추출
+- 8색 팔레트 기반 컬러 카드 (좌측 보더, 원형 번호 배지)
+- **HTML 다운로드** 기능: Noto Sans KR 폰트 포함 자체 완결형 HTML 파일 생성
+- 통계 표시: 섹션 수, 핵심 포인트 수
+
+#### `src/pages/GenerationStudioPage.tsx` 인포그래픽 탭 변경
+- 기존: `InfographicCardView` + `artifactsByType.get("infographic")` (아티팩트 기반)
+- 변경: `DocumentInfographic` + `combinedDocument` (종합강의안 기반)
+- 종합강의안이 없으면 빈 상태 안내 표시
+
+#### `src/components/course/LessonDetailPane.tsx` 인포그래픽 렌더링 변경
+- `DocumentInfographic` import 추가
+- 인포그래픽 렌더링 우선순위:
+  1. `content.markdown` 존재 시 → `DocumentInfographic` (마크다운 기반 인포그래픽 + HTML 다운로드)
+  2. JSON 데이터 존재 시 → `InfographicCardView` (기존 JSON 기반 폴백)
+
+## 배포
+
+| 대상 | 상태 | 비고 |
+|------|------|------|
+| Azure Functions | 42개 함수 정상 배포 | `func azure functionapp publish func-landing-page-pro --nozip` |
+| Frontend (SWA) 1차 | 정상 배포 | 커버 이미지 수정, 대시보드 UI, StyledDocumentViewer, InfographicCardView |
+| Frontend (SWA) 2차 | 정상 배포 | DocumentInfographic 추가, 인포그래픽 탭 종합강의안 기반으로 변경 |
+
+배포 URL: `https://icy-forest-03cc7cb00.1.azurestaticapps.net`
+
+## 환경 확인
+
+- OPENAI_API_KEY: Azure Function App 설정에 정상 등록 확인
+- VERTEX_API_KEY, VERTEX_PROJECT_ID, VERTEX_LOCATION: Azure Function App 설정에 등록 확인
+- Node.js 런타임: v20 (Azure Functions)
+- Application Insights에서 DALL-E 3 이미지 생성 성공 확인 (08:55:01 UTC, b64 length: 1455592)
+
 ## 검증 방법
 
 1. 새 프로젝트 생성 시 파이프라인 마지막 단계에서 DALL-E 3 커버 이미지 자동 생성 확인
 2. 대시보드에서 커버 이미지/그라디언트 표시 확인
 3. 종합강의안 탭에서 블로그 스타일 렌더링 확인
-4. 인포그래픽 탭에서 카드 뷰 + 가로 스크롤 + HTML 다운로드 확인
+4. **인포그래픽 탭에서 종합강의안 기반 섹션 카드 + HTML 다운로드 확인**
 5. 기존 프로젝트에서 'AI 수정 요청' → "커버 이미지 재생성해줘" 명령 테스트
+6. 코스빌더에서 인포그래픽 생성 시 DocumentInfographic 렌더링 확인
 
 ## 수정 파일 목록
 
@@ -116,6 +154,7 @@
 | `src/pages/Dashboard.tsx` | 프로젝트 카드 UI 개선 |
 | `src/components/studio/StyledDocumentViewer.tsx` | 신규: 블로그 스타일 문서 뷰어 |
 | `src/components/studio/InfographicCardView.tsx` | 신규: 인포그래픽 카드 뷰 |
-| `src/pages/GenerationStudioPage.tsx` | StyledDocumentViewer, InfographicCardView 적용 |
-| `src/components/course/LessonDetailPane.tsx` | 렌더링 교체 + 슬라이드 정규화 |
+| `src/components/studio/DocumentInfographic.tsx` | 신규: 종합강의안 기반 인포그래픽 + HTML 다운로드 |
+| `src/pages/GenerationStudioPage.tsx` | StyledDocumentViewer, DocumentInfographic 적용 |
+| `src/components/course/LessonDetailPane.tsx` | 렌더링 교체 + 슬라이드 정규화 + DocumentInfographic 통합 |
 | `.gitignore` | 빌드 아티팩트/배포 파일 추가 |

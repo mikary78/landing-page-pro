@@ -37,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InfographicCanvas } from "@/components/studio/InfographicCanvas";
 import { InfographicCardView } from "@/components/studio/InfographicCardView";
 import { StyledDocumentViewer } from "@/components/studio/StyledDocumentViewer";
+import { DocumentInfographic } from "@/components/studio/DocumentInfographic";
 import { SlidesCanvas } from "@/components/studio/SlidesCanvas";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
@@ -1706,14 +1707,23 @@ export default function GenerationStudioPage() {
                   </ScrollArea>
                 </TabsContent>
 
-                {/* 인포그래픽 탭 */}
+                {/* 인포그래픽 탭 - 종합강의안 기반 */}
                 <TabsContent value="infographic" className="mt-4">
                   <ScrollArea className="h-[calc(100vh-380px)]">
                     <div className="rounded-xl border bg-white dark:bg-slate-900 shadow-sm p-6 min-h-[400px]">
-                      <InfographicCardView
-                        data={artifactsByType.get("infographic")?.content_json}
-                        assets={artifactsByType.get("infographic")?.assets}
-                      />
+                      {combinedDocument ? (
+                        <DocumentInfographic
+                          content={combinedDocument}
+                          title={project?.title || jobState.job?.title}
+                          subtitle={project?.description}
+                        />
+                      ) : (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>인포그래픽으로 표시할 콘텐츠가 없습니다.</p>
+                          <p className="text-sm mt-2">파이프라인이 완료되면 종합 강의안 기반 인포그래픽이 생성됩니다.</p>
+                        </div>
+                      )}
                       {webSources.length > 0 && (
                         <div className="mt-6 pt-4 border-t">
                           <h4 className="text-sm font-medium mb-2">참고 출처</h4>

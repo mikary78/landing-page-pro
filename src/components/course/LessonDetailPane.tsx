@@ -30,6 +30,7 @@ import { SlidePreview } from "./SlidePreview";
 import { SupplementaryMaterialsPreview } from "./SupplementaryMaterialsPreview";
 import { StyledDocumentViewer } from "@/components/studio/StyledDocumentViewer";
 import { InfographicCardView } from "@/components/studio/InfographicCardView";
+import { DocumentInfographic } from "@/components/studio/DocumentInfographic";
 import { downloadAsJSON, downloadAsMarkdown, downloadAsText, downloadAsWord, downloadAsPDF, downloadAllAsZip } from "@/lib/downloadUtils";
 import {
   DropdownMenu,
@@ -460,6 +461,16 @@ const LessonDetailPane = ({ lessonId, courseId }: LessonDetailPaneProps) => {
     }
 
     if (contentType === 'infographic') {
+      // markdown 기반 인포그래픽 (DocumentInfographic 사용)
+      if (content.markdown && typeof content.markdown === 'string') {
+        return (
+          <DocumentInfographic
+            content={content.markdown}
+            title={lessonTitle}
+          />
+        );
+      }
+      // JSON 기반 인포그래픽 (기존 InfographicCardView 폴백)
       if (!data || (!data.sections && !data.diagram)) {
         return (
           <div className="min-h-[300px] flex items-center justify-center text-center p-8 bg-slate-50 rounded-lg">
