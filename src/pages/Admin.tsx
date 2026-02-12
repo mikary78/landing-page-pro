@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { supabase } from "@/integrations/supabase/client";
-import { Enums, Tables } from "@/integrations/supabase/types";
+import { getAdminDashboard, adminChangeRole as apiChangeRole } from "@/lib/azureFunctions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +25,23 @@ import {
 import { Loader2, Shield, Users, LayoutDashboard, BookOpen, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
-type Project = Tables<"projects">;
-type Course = Tables<"courses">;
-type Profile = Tables<"profiles">;
-type AppRole = Enums<"app_role">;
+interface Project {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string | null;
+  created_at: string;
+}
+
+type AppRole = "admin" | "moderator" | "user";
 
 interface RoleAssignment {
   userId: string;
@@ -55,100 +67,6 @@ const Admin = () => {
     }
   }, [loading, user, navigate]);
 
-  const fetchCount = useCallback(
-    async (table: "profiles" | "projects" | "courses") => {
-      const { count, error } = await supabase
-        .from(table)
-        .select("id", { count: "exact", head: true });
-
-      if (error) {
-        throw error;
-      }
-
-      return count || 0;
-    },
-    [],
-  );
-
-  const loadStats = useCallback(async () => {
-    const [usersCount, projectsCount, coursesCount] = await Promise.all([
-      fetchCount("profiles"),
-      fetchCount("projects"),
-      fetchCount("courses"),
-    ]);
-
-    setStats({
-      users: usersCount,
-      projects: projectsCount,
-      courses: coursesCount,
-    });
-  }, [fetchCount]);
-
-  const loadRecentProjects = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (error) {
-      throw error;
-    }
-
-    setRecentProjects(data || []);
-  }, []);
-
-  const loadRecentCourses = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("courses")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (error) {
-      throw error;
-    }
-
-    setRecentCourses(data || []);
-  }, []);
-
-  const loadRoleAssignments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error) {
-      throw error;
-    }
-
-    const userIds = (data || []).map((role) => role.user_id);
-    let profiles: Profile[] = [];
-
-    if (userIds.length > 0) {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .in("user_id", userIds);
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      profiles = profileData || [];
-    }
-
-    const profileMap = new Map(profiles.map((profile) => [profile.user_id, profile.display_name]));
-    const assignments = (data || []).map<RoleAssignment>((role) => ({
-      userId: role.user_id,
-      role: role.role,
-      displayName: profileMap.get(role.user_id) || "이름 없음",
-    }));
-
-    setRoleAssignments(assignments);
-  }, []);
-
   const loadAdminData = useCallback(async () => {
     if (!user || !isAdmin) {
       return;
@@ -156,14 +74,28 @@ const Admin = () => {
 
     setDataLoading(true);
     try {
-      await Promise.all([loadStats(), loadRecentProjects(), loadRecentCourses(), loadRoleAssignments()]);
+      const { data, error } = await getAdminDashboard();
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        setStats(data.stats);
+        setRecentProjects(data.recentProjects);
+        setRecentCourses(data.recentCourses);
+        setRoleAssignments(
+          data.roleAssignments.map((r) => ({
+            ...r,
+            role: r.role as AppRole,
+          }))
+        );
+      }
     } catch (error) {
       console.error("Failed to load admin data", error);
       toast.error("관리자 데이터를 불러오는 중 오류가 발생했습니다.");
     } finally {
       setDataLoading(false);
     }
-  }, [user, isAdmin, loadStats, loadRecentProjects, loadRecentCourses, loadRoleAssignments]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     loadAdminData();
@@ -172,26 +104,12 @@ const Admin = () => {
   const handleRoleChange = async (userId: string, nextRole: AppRole) => {
     setUpdatingUserId(userId);
     try {
-      const { error: deleteError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId);
-
-      if (deleteError) {
-        throw deleteError;
+      const { error } = await apiChangeRole({ userId, role: nextRole });
+      if (error) {
+        throw error;
       }
-
-      const { error: insertError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role: nextRole });
-
-      if (insertError) {
-        throw insertError;
-      }
-
       toast.success("역할이 업데이트되었습니다.");
-      await Promise.all([loadRoleAssignments(), loadStats()]);
-
+      await loadAdminData();
       if (userId === user?.id) {
         await refreshRoles();
       }
@@ -357,7 +275,7 @@ const Admin = () => {
                 사용자 역할을 안전하게 관리하고 최소 권한 원칙을 유지하세요.
               </p>
             </div>
-            <Button variant="outline" onClick={loadRoleAssignments}>
+            <Button variant="outline" onClick={loadAdminData}>
               새로고침
             </Button>
           </div>

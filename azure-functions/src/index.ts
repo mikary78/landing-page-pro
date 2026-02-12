@@ -59,3 +59,7 @@ import './functions/regenerateSingleContent';
 
 // Content Version Management (Phase 4)
 import './functions/contentVersions';
+
+// Admin APIs
+import './functions/adminDashboard';
+import './functions/adminChangeRole';

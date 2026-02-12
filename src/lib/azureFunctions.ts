@@ -408,6 +408,66 @@ export async function getUserRoles(): Promise<{ data: UserRolesResponse | null; 
 }
 
 // ============================================================
+// Admin APIs
+// ============================================================
+
+export interface AdminDashboardResponse {
+  success: boolean;
+  stats: {
+    users: number;
+    projects: number;
+    courses: number;
+  };
+  recentProjects: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    created_at: string;
+  }>;
+  recentCourses: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    status: string | null;
+    created_at: string;
+  }>;
+  roleAssignments: Array<{
+    userId: string;
+    role: string;
+    displayName: string;
+  }>;
+}
+
+export async function getAdminDashboard(): Promise<{ data: AdminDashboardResponse | null; error: Error | null }> {
+  return callAzureFunction<AdminDashboardResponse>(
+    '/api/admin/dashboard',
+    'GET'
+  );
+}
+
+export interface AdminChangeRoleRequest {
+  userId: string;
+  role: 'admin' | 'moderator' | 'user';
+}
+
+export interface AdminChangeRoleResponse {
+  success: boolean;
+  userId: string;
+  role: string;
+}
+
+export async function adminChangeRole(
+  request: AdminChangeRoleRequest
+): Promise<{ data: AdminChangeRoleResponse | null; error: Error | null }> {
+  return callAzureFunction<AdminChangeRoleResponse>(
+    '/api/admin/change-role',
+    'POST',
+    request
+  );
+}
+
+// ============================================================
 // Fallback: Call Azure Functions directly (for debugging)
 // ============================================================
 
