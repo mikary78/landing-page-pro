@@ -344,7 +344,7 @@ func azure functionapp publish func-landing-page-pro
 - 환경 변수를 통한 민감 정보 관리
 - PostgreSQL 연결 암호화
 
-보안 관련 자세한 내용은 [`SECURITY_INCIDENT_REPORT.md`](./SECURITY_INCIDENT_REPORT.md)를 참조하세요.
+보안 관련 자세한 내용은 [`SECURITY_INCIDENT_REPORT.md`](./docs/security/SECURITY_INCIDENT_REPORT.md)를 참조하세요.
 
 ---
 

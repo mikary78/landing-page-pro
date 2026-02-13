@@ -4,7 +4,7 @@ import path from 'path'
 
 describe('Policy Tests', () => {
   test('DEV_POLICY.md exists and contains required keywords', async () => {
-    const policyPath = path.resolve(__dirname, '..', 'DEV_POLICY.md')
+    const policyPath = path.resolve(__dirname, '..', '..', 'docs', 'guides', 'DEV_POLICY.md')
     const exists = fs.existsSync(policyPath)
     expect(exists).toBeTruthy()
     if (!exists) return
