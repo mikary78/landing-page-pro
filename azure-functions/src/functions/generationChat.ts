@@ -103,7 +103,7 @@ export async function generationChat(
       if (intent === 'question') {
         // Get artifacts for context
         const artifactsRes = await client.query(
-          `SELECT artifact_type, assets, content, status FROM generation_artifacts WHERE job_id = $1`,
+          `SELECT artifact_type, assets, content_text, content_json, status FROM generation_artifacts WHERE job_id = $1`,
           [job.id]
         );
 
@@ -115,9 +115,9 @@ export async function generationChat(
         for (const artifact of artifacts) {
           if (artifact.status === 'completed' || artifact.status === 'draft') {
             contextText += `\n[${artifact.artifact_type}]\n`;
-            if (artifact.content) {
-              // Limit context size
-              const content = typeof artifact.content === 'string' ? artifact.content : JSON.stringify(artifact.content);
+            const content = artifact.content_text ||
+              (artifact.content_json ? JSON.stringify(artifact.content_json) : null);
+            if (content) {
               contextText += content.substring(0, 2000) + (content.length > 2000 ? '...' : '') + '\n';
             }
             if (artifact.assets) {

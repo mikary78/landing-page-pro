@@ -43,7 +43,8 @@ type Project = {
   created_at: string;
   updated_at: string;
   is_converted_to_course?: boolean;
-  cover_image_url?: string;
+  cover_icon?: string;
+  cover_gradient?: string[];
 };
 
 type Course = {
@@ -314,20 +315,19 @@ const Dashboard = () => {
               ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {projects.map((project) => {
-                    // 프로젝트별 고유 그라디언트 생성
-                    const gradients = [
-                      "from-blue-500/80 to-indigo-600/80",
-                      "from-purple-500/80 to-pink-600/80",
-                      "from-emerald-500/80 to-teal-600/80",
-                      "from-orange-500/80 to-red-600/80",
-                      "from-cyan-500/80 to-blue-600/80",
-                      "from-violet-500/80 to-purple-600/80",
+                    // AI가 선택한 아이콘/그라디언트 또는 기본 폴백
+                    const fallbackGradients = [
+                      ['#6366f1', '#8b5cf6'],
+                      ['#ec4899', '#f43f5e'],
+                      ['#10b981', '#14b8a6'],
+                      ['#f97316', '#ef4444'],
+                      ['#06b6d4', '#3b82f6'],
+                      ['#8b5cf6', '#a855f7'],
                     ];
-                    const gradientIdx = project.title.length % gradients.length;
-                    const gradient = gradients[gradientIdx];
-
-                    // AI 모델 이모지
-                    const modelEmoji = project.ai_model === 'gemini' ? '✨' : project.ai_model === 'claude' ? '🤖' : '💬';
+                    const coverIcon = project.cover_icon || (project.ai_model === 'gemini' ? '✨' : project.ai_model === 'claude' ? '🤖' : '💬');
+                    const coverGradient = project.cover_gradient?.length === 2
+                      ? project.cover_gradient
+                      : fallbackGradients[project.title.length % fallbackGradients.length];
 
                     return (
                       <Card
@@ -335,22 +335,15 @@ const Dashboard = () => {
                         className="group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer border-border/50"
                         onClick={() => navigate(`/project/${project.id}/studio`)}
                       >
-                        {/* Cover Image / Gradient Banner */}
-                        <div className="w-full h-44 overflow-hidden relative">
-                          {project.cover_image_url ? (
-                            <img
-                              src={project.cover_image_url}
-                              alt={`${project.title} 커버`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                          ) : (
-                            <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-                              <div className="text-center text-white/90">
-                                <span className="text-5xl block mb-2">{modelEmoji}</span>
-                                <p className="text-sm font-medium opacity-80">{project.ai_model}</p>
-                              </div>
-                            </div>
-                          )}
+                        {/* Icon + Gradient Banner */}
+                        <div
+                          className="w-full h-44 overflow-hidden relative flex items-center justify-center"
+                          style={{ background: `linear-gradient(135deg, ${coverGradient[0]}, ${coverGradient[1]})` }}
+                        >
+                          <div className="text-center text-white/90">
+                            <span className="text-6xl block mb-1 drop-shadow-lg group-hover:scale-110 transition-transform duration-300">{coverIcon}</span>
+                            <p className="text-sm font-medium opacity-70">{project.ai_model}</p>
+                          </div>
                           {/* Status badge overlay */}
                           <div className="absolute top-3 right-3">
                             {getStatusBadge(project.status)}
@@ -491,84 +484,111 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {courses.map((course) => (
-                    <Card 
-                      key={course.id} 
-                      className="hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => navigate(`/courses/${course.id}/builder`)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="line-clamp-1">{course.title}</CardTitle>
-                            <CardDescription className="line-clamp-2 mt-2">
-                              {course.description || "설명이 없습니다"}
-                            </CardDescription>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {courses.map((course) => {
+                    const courseGradients = [
+                      ['#0ea5e9', '#6366f1'],
+                      ['#8b5cf6', '#d946ef'],
+                      ['#10b981', '#059669'],
+                      ['#f59e0b', '#ea580c'],
+                      ['#06b6d4', '#0284c7'],
+                      ['#a855f7', '#7c3aed'],
+                    ];
+                    const courseIcons = ['📖', '🎓', '📝', '🧪', '💡', '🔧'];
+                    const idx = course.title.length % courseGradients.length;
+
+                    const getCourseStatusBadge = (status: string) => {
+                      switch (status) {
+                        case "published":
+                          return <Badge className="bg-success text-success-foreground">발행됨</Badge>;
+                        case "in_review":
+                          return <Badge className="bg-primary text-primary-foreground">검토 중</Badge>;
+                        case "draft":
+                          return <Badge variant="outline">초안</Badge>;
+                        case "archived":
+                          return <Badge variant="secondary">보관됨</Badge>;
+                        default:
+                          return <Badge variant="outline">{status}</Badge>;
+                      }
+                    };
+
+                    return (
+                      <Card
+                        key={course.id}
+                        className="group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer border-border/50"
+                        onClick={() => navigate(`/courses/${course.id}/builder`)}
+                      >
+                        <div
+                          className="w-full h-44 overflow-hidden relative flex items-center justify-center"
+                          style={{ background: `linear-gradient(135deg, ${courseGradients[idx][0]}, ${courseGradients[idx][1]})` }}
+                        >
+                          <div className="text-center text-white/90">
+                            <span className="text-6xl block mb-1 drop-shadow-lg group-hover:scale-110 transition-transform duration-300">{courseIcons[idx]}</span>
+                            <p className="text-sm font-medium opacity-70">{course.level || '코스'}</p>
                           </div>
-                          {course.status === "published" ? (
-                            <Badge className="bg-success text-success-foreground">발행됨</Badge>
-                          ) : course.status === "in_review" ? (
-                            <Badge className="bg-primary text-primary-foreground">검토 중</Badge>
-                          ) : (
-                            <Badge variant="outline">초안</Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-4">
-                          {course.level && (
-                            <Badge variant="outline">{course.level}</Badge>
-                          )}
-                          {course.total_duration && (
-                            <Badge variant="secondary">{course.total_duration}</Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(course.created_at).toLocaleDateString("ko-KR")}
-                          </span>
-                          <div className="flex gap-2 flex-wrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/courses/${course.id}/detail`);
-                              }}
-                            >
-                              보기
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/courses/${course.id}/builder`);
-                              }}
-                            >
-                              빌더 열기
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCourseToDelete(course.id);
-                              }}
-                              disabled={deletingCourseId === course.id}
-                            >
-                              {deletingCourseId === course.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
+                          <div className="absolute top-3 right-3">
+                            {getCourseStatusBadge(course.status)}
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">
+                            {course.title}
+                          </CardTitle>
+                          <CardDescription className="line-clamp-2 mt-1">
+                            {course.description || "설명이 없습니다"}
+                          </CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="pt-0">
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {course.level && (
+                              <Badge variant="outline" className="text-xs">{course.level}</Badge>
+                            )}
+                            {course.total_duration && (
+                              <Badge variant="secondary" className="text-xs">{course.total_duration}</Badge>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {new Date(course.created_at).toLocaleDateString("ko-KR")}
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCourseToDelete(course.id);
+                                }}
+                                disabled={deletingCourseId === course.id}
+                              >
+                                {deletingCourseId === course.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/courses/${course.id}/builder`);
+                                }}
+                              >
+                                빌더
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>

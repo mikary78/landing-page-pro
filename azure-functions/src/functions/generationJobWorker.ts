@@ -15,7 +15,7 @@ import { generateContent } from '../lib/ai-services';
 import { planGenerationSteps, RequestedOutputs, GenerationOptions, GenerationStepType } from '../lib/agent/plan';
 import { resolveSlideCount, resolveTemplate } from '../lib/agent/slidesOptions';
 import { webSearch, WebSearchResult } from '../lib/web-search';
-import { generateImageDataUrl } from '../lib/image-generation';
+
 import { ensureSourcesSectionMarkdown, enforceSlideCitationsAndDeckSources, normalizeSources } from '../lib/citations';
 import {
   BriefingInput,
@@ -324,7 +324,7 @@ async function runStep(
   output?: any;
   log?: string;
   artifacts?: Array<{
-    type: 'document' | 'infographic' | 'slides';
+    type: 'document' | 'infographic' | 'slides' | 'cover';
     contentText?: string;
     contentJson?: any;
     assets?: any;
@@ -663,112 +663,49 @@ JSON 스키마 예시:
   }
 
   if (stepType === 'design_assets') {
-    if (!options.enableImageGeneration) {
-      return { log: '이미지 생성 비활성화(옵션)', output: { skipped: true } };
-    }
-
     const title = contextState.interpret?.title || '교육 콘텐츠';
-    const palette = existingArtifacts.infographic?.palette || contextState.interpret?.designStyle?.colors || [];
-    const paletteText = Array.isArray(palette) && palette.length ? palette.join(', ') : 'modern clean palette';
+    const description = contextState.interpret?.description || '';
 
-    // 1. 배경 이미지 생성
-    const backgroundPrompt = `Create a clean modern abstract background for an educational infographic and slide deck.\nTopic: ${title}\nPalette: ${paletteText}\nStyle: minimal, professional, lots of whitespace, subtle shapes.\nNo text.`;
-    context.log(`[design_assets] 배경 이미지 생성 시작`);
-    context.log(`[design_assets] Title: ${title}`);
-    context.log(`[design_assets] Palette: ${paletteText}`);
-    context.log(`[design_assets] Prompt length: ${backgroundPrompt.length} characters`);
+    context.log(`[design_assets] 프로젝트 아이콘 생성 시작 - Title: ${title}`);
 
-    const bg = await generateImageDataUrl(backgroundPrompt);
+    // AI를 사용하여 프로젝트 내용에 맞는 이모지 아이콘 + 그라디언트 색상 선택
+    const iconPrompt = `주어진 교육 프로젝트의 제목과 내용을 분석하여, 프로젝트를 가장 잘 나타내는 이모지 아이콘 1개와 어울리는 그라디언트 색상 2개를 선택해주세요.
 
-    context.log(`[design_assets] 배경 이미지 생성 결과: ${bg ? '성공' : '실패'}`);
-    if (!bg) {
-      const hasVertexKey = !!(process.env.VERTEX_API_KEY || process.env.VERTEXX_API_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS);
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+제목: ${title}
+${description ? `설명: ${description}` : ''}
 
-      let note = '이미지 생성 API 키가 설정되지 않았습니다.';
-      if (!hasVertexKey && !hasOpenAIKey) {
-        note = 'VERTEX_API_KEY (또는 GOOGLE_APPLICATION_CREDENTIALS) 또는 OPENAI_API_KEY 중 하나가 필요합니다.';
-      } else if (!hasVertexKey) {
-        note = 'Vertex AI Imagen API를 사용하려면 VERTEX_API_KEY와 VERTEX_PROJECT_ID가 필요합니다. 현재는 OpenAI DALL-E를 사용합니다.';
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요:
+{"icon":"이모지1개","gradient":["시작색상hex","끝색상hex"]}
+
+규칙:
+- icon: 프로젝트 주제를 나타내는 이모지 1개 (예: 📊, 🎨, 💻, 🧬, 📚, 🏗️, 🎯, 🔬, 🌍, 🤖)
+- gradient: 밝고 세련된 그라디언트 색상 2개 (hex 코드, 교육적이고 전문적인 느낌)`;
+
+    let icon = '📚';
+    let gradient = ['#6366f1', '#8b5cf6'];
+
+    try {
+      const result = await generateContent(aiModel, iconPrompt);
+      const parsed = safeJsonParse<{ icon: string; gradient: string[] }>(result);
+      if (parsed?.icon && parsed?.gradient?.length === 2) {
+        icon = parsed.icon;
+        gradient = parsed.gradient;
+        context.log(`[design_assets] AI 아이콘 선택 완료: ${icon} [${gradient.join(', ')}]`);
+      } else {
+        context.warn(`[design_assets] AI 응답 파싱 실패, 기본값 사용. 응답: ${result?.slice(0, 200)}`);
       }
-
-      return {
-        log: '이미지 생성: API 키 미설정 또는 생성 실패(스킵)',
-        output: { skipped: true, note }
-      };
+    } catch (error) {
+      context.warn(`[design_assets] AI 아이콘 생성 실패, 기본값 사용:`, error);
     }
 
-    // 2. 콘텐츠별 삽화 생성 (슬라이드가 있을 경우)
-    const illustrations: any[] = [];
-    const slidesArtifact = existingArtifacts.slides;
-
-    if (slidesArtifact?.content_json?.slides && Array.isArray(slidesArtifact.content_json.slides)) {
-      const slides = slidesArtifact.content_json.slides;
-      const maxIllustrations = Math.min(3, slides.length); // 최대 3개 슬라이드에 대해 삽화 생성
-
-      context.log(`[design_assets] 슬라이드 ${slides.length}개 중 ${maxIllustrations}개에 대해 삽화 생성 시도`);
-
-      // 중요한 슬라이드 선택 (처음, 중간, 마지막)
-      const selectedIndices: number[] = [];
-      if (maxIllustrations >= 1 && slides.length > 0) selectedIndices.push(0); // 처음
-      if (maxIllustrations >= 2 && slides.length > 2) selectedIndices.push(Math.floor(slides.length / 2)); // 중간
-      if (maxIllustrations >= 3 && slides.length > 1) selectedIndices.push(slides.length - 1); // 마지막
-
-      for (let i = 0; i < selectedIndices.length; i++) {
-        const slideIdx = selectedIndices[i];
-        const slide = slides[slideIdx];
-
-        if (slide.title) {
-          const illustrationPrompt = `Create a simple, clean illustration representing the concept: "${slide.title}".\n${
-            slide.bulletPoints?.slice(0, 2).join(', ') || ''
-          }\nStyle: minimal, educational, flat design, ${paletteText}.\nNo text in the image.`;
-
-          try {
-            const illustration = await generateImageDataUrl(illustrationPrompt);
-            if (illustration) {
-              illustrations.push({
-                ...illustration,
-                slideNumber: slide.slideNumber || slideIdx + 1,
-                title: slide.title,
-              });
-              context.log(`[design_assets] 슬라이드 ${slideIdx + 1} 삽화 생성 완료`);
-            }
-          } catch (error) {
-            context.warn(`[design_assets] 슬라이드 ${slideIdx + 1} 삽화 생성 실패:`, error);
-          }
-        }
-      }
-    }
-
-    // 3. 결과 반환
-    const outputSummary = {
-      cover: { model: bg.model, createdAt: bg.createdAt }, // 'background' → 'cover'로 변경
-      illustrations: illustrations.map(ill => ({
-        slideNumber: ill.slideNumber,
-        title: ill.title,
-        model: ill.model,
-        createdAt: ill.createdAt,
-      })),
-    };
-
-    // 프로젝트 커버 이미지는 독립적인 artifact로 저장 (슬라이드/인포그래픽 배경으로 사용하지 않음)
-    const artifacts: any[] = [
-      { type: 'cover', assets: { background: bg }, markCompleted: true }, // 프로젝트 커버 전용 - markCompleted를 true로 설정
-    ];
-
-    // illustrations가 있으면 slides artifact에 추가 (background 제외)
-    if (illustrations.length > 0) {
-      artifacts.push({ type: 'slides', assets: { illustrations }, markCompleted: false });
-    }
-
-    const logMessage = illustrations.length > 0
-      ? `프로젝트 커버 생성 완료: 커버 이미지 1개 + 삽화 ${illustrations.length}개`
-      : '프로젝트 커버 이미지 생성 완료';
+    const coverData = { icon, gradient, createdAt: new Date().toISOString() };
 
     return {
-      log: logMessage,
-      output: outputSummary,
-      artifacts,
+      log: `프로젝트 아이콘 생성 완료: ${icon}`,
+      output: coverData,
+      artifacts: [
+        { type: 'cover', assets: { cover: coverData }, markCompleted: true },
+      ],
     };
   }
 

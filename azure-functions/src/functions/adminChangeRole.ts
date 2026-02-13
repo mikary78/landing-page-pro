@@ -83,6 +83,6 @@ export async function adminChangeRole(
 app.http('adminChangeRole', {
   methods: ['POST'],
   authLevel: 'anonymous',
-  route: 'admin/change-role',
+  route: 'manage/change-role',
   handler: adminChangeRole,
 });

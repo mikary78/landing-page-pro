@@ -441,7 +441,7 @@ export interface AdminDashboardResponse {
 
 export async function getAdminDashboard(): Promise<{ data: AdminDashboardResponse | null; error: Error | null }> {
   return callAzureFunction<AdminDashboardResponse>(
-    '/api/admin/dashboard',
+    '/api/manage/dashboard',
     'GET'
   );
 }
@@ -461,7 +461,7 @@ export async function adminChangeRole(
   request: AdminChangeRoleRequest
 ): Promise<{ data: AdminChangeRoleResponse | null; error: Error | null }> {
   return callAzureFunction<AdminChangeRoleResponse>(
-    '/api/admin/change-role',
+    '/api/manage/change-role',
     'POST',
     request
   );

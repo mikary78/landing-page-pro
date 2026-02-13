@@ -1,15 +1,11 @@
 /**
  * Courses 페이지
- * 
- * 수정일: 2025-12-31
- * 수정 내용: Azure 인증 전환으로 Supabase 연결 불가, 에러 조용히 처리
- * 
- * TODO: Azure Functions API로 코스 목록 가져오기
+ *
+ * 프로젝트 대시보드와 동일한 카드 UI 스타일 적용
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-// import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,11 +21,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Header from "@/components/Header";
-import { Plus, Loader2, BookOpen, Trash2 } from "lucide-react";
+import { Plus, Loader2, BookOpen, Trash2, Clock } from "lucide-react";
 import { toast } from "sonner";
-// import { Tables } from "@/integrations/supabase/types";
 
-// Supabase 타입 대신 직접 정의
 type Course = {
   id: string;
   title: string;
@@ -41,6 +35,16 @@ type Course = {
   created_at: string;
   updated_at: string;
 };
+
+const COURSE_GRADIENTS = [
+  ['#0ea5e9', '#6366f1'],
+  ['#8b5cf6', '#d946ef'],
+  ['#10b981', '#059669'],
+  ['#f59e0b', '#ea580c'],
+  ['#06b6d4', '#0284c7'],
+  ['#a855f7', '#7c3aed'],
+];
+const COURSE_ICONS = ['📖', '🎓', '📝', '🧪', '💡', '🔧'];
 
 const CoursesPage = () => {
   const { user, loading } = useAuth();
@@ -58,13 +62,13 @@ const CoursesPage = () => {
 
   const fetchCourses = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       setLoadingCourses(true);
-      
+
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; courses: Course[] }>('/api/getcourses', 'GET');
-      
+
       if (error) throw error;
       if (data?.success && data.courses) {
         setCourses(data.courses);
@@ -82,18 +86,6 @@ const CoursesPage = () => {
   useEffect(() => {
     if (user) {
       fetchCourses();
-
-      // Supabase Realtime 구독 제거 (Azure 인증 전환으로 연결 불가)
-      // TODO: Azure Functions WebSocket 또는 Polling으로 실시간 업데이트 구현
-      // 
-      // const channel = supabase
-      //   .channel('courses-changes')
-      //   .on(...)
-      //   .subscribe();
-      // 
-      // return () => {
-      //   supabase.removeChannel(channel);
-      // };
     }
   }, [fetchCourses, user]);
 
@@ -102,19 +94,18 @@ const CoursesPage = () => {
 
     try {
       setDeletingId(courseToDelete);
-      
+
       const { callAzureFunctionDirect } = await import('@/lib/azureFunctions');
       const { data, error } = await callAzureFunctionDirect<{ success: boolean; message?: string }>(
         `/api/deletecourse/${courseToDelete}`,
         'DELETE'
       );
-      
+
       if (error) throw error;
       if (!data?.success) {
         throw new Error(data?.message || 'Failed to delete course');
       }
-      
-      // 로컬 상태 업데이트
+
       setCourses(courses.filter(course => course.id !== courseToDelete));
       toast.success("코스가 성공적으로 삭제되었습니다.");
       setCourseToDelete(null);
@@ -156,7 +147,7 @@ const CoursesPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -192,83 +183,92 @@ const CoursesPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {courses.map((course) => (
-              <Card 
-                key={course.id} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate(`/courses/${course.id}/builder`)}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="line-clamp-1">{course.title}</CardTitle>
-                      <CardDescription className="line-clamp-2 mt-2">
-                        {course.description || "설명이 없습니다"}
-                      </CardDescription>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {courses.map((course) => {
+              const idx = course.title.length % COURSE_GRADIENTS.length;
+              const gradient = COURSE_GRADIENTS[idx];
+              const icon = COURSE_ICONS[idx];
+
+              return (
+                <Card
+                  key={course.id}
+                  className="group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer border-border/50"
+                  onClick={() => navigate(`/courses/${course.id}/builder`)}
+                >
+                  {/* Icon + Gradient Banner */}
+                  <div
+                    className="w-full h-44 overflow-hidden relative flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
+                  >
+                    <div className="text-center text-white/90">
+                      <span className="text-6xl block mb-1 drop-shadow-lg group-hover:scale-110 transition-transform duration-300">{icon}</span>
+                      <p className="text-sm font-medium opacity-70">{course.level || '코스'}</p>
                     </div>
-                    {getStatusBadge(course.status)}
+                    <div className="absolute top-3 right-3">
+                      {getStatusBadge(course.status)}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {course.level && (
-                      <Badge variant="outline">{course.level}</Badge>
-                    )}
-                    {course.total_duration && (
-                      <Badge variant="secondary">{course.total_duration}</Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
+
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">
+                      {course.title}
+                    </CardTitle>
+                    <CardDescription className="line-clamp-2 mt-1">
+                      {course.description || "설명이 없습니다"}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="pt-0">
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {course.level && (
+                        <Badge variant="outline" className="text-xs">{course.level}</Badge>
+                      )}
+                      {course.total_duration && (
+                        <Badge variant="secondary" className="text-xs">{course.total_duration}</Badge>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
                         {new Date(course.created_at).toLocaleDateString("ko-KR")}
                       </span>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCourseToDelete(course.id);
+                          }}
+                          disabled={deletingId === course.id}
+                        >
+                          {deletingId === course.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/courses/${course.id}/builder`);
+                          }}
+                        >
+                          빌더
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 min-w-[80px]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/courses/${course.id}/detail`);
-                        }}
-                      >
-                        보기
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1 min-w-[100px]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/courses/${course.id}/builder`);
-                        }}
-                      >
-                        빌더 열기
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCourseToDelete(course.id);
-                        }}
-                        disabled={deletingId === course.id}
-                        className="flex-shrink-0"
-                      >
-                        {deletingId === course.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>
@@ -292,16 +292,3 @@ const CoursesPage = () => {
 };
 
 export default CoursesPage;
-
-
-
-
-
-
-
-
-
-
-
-
-

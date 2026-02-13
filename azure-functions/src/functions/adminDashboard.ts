@@ -95,6 +95,6 @@ export async function adminDashboard(
 app.http('adminDashboard', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'admin/dashboard',
+  route: 'manage/dashboard',
   handler: adminDashboard,
 });

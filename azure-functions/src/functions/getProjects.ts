@@ -50,18 +50,33 @@ export async function getProjects(
           ELSE false
         END as is_converted_to_course,
         (
-          SELECT ga.assets->'background'->>'dataUrl'
+          SELECT COALESCE(
+            ga.assets->'cover'->>'icon',
+            ga.assets->'background'->>'icon'
+          )
           FROM generation_jobs gj
           JOIN generation_artifacts ga ON gj.id = ga.job_id
           WHERE gj.project_id = p.id
             AND ga.artifact_type = 'cover'
             AND ga.status = 'completed'
             AND ga.assets IS NOT NULL
-            AND ga.assets->'background' IS NOT NULL
-            AND ga.assets->'background'->>'dataUrl' IS NOT NULL
           ORDER BY ga.created_at DESC
           LIMIT 1
-        ) as cover_image_url
+        ) as cover_icon,
+        (
+          SELECT COALESCE(
+            ga.assets->'cover'->'gradient',
+            ga.assets->'background'->'gradient'
+          )
+          FROM generation_jobs gj
+          JOIN generation_artifacts ga ON gj.id = ga.job_id
+          WHERE gj.project_id = p.id
+            AND ga.artifact_type = 'cover'
+            AND ga.status = 'completed'
+            AND ga.assets IS NOT NULL
+          ORDER BY ga.created_at DESC
+          LIMIT 1
+        ) as cover_gradient
        FROM projects p
        WHERE p.user_id = $1
        ORDER BY p.created_at DESC`,
